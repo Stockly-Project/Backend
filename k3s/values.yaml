@@ -1,9 +1,0 @@
-replicaCount: 2
-image:
-  repository: jungeunyoon/stock_server
-  tag: "1.0.16"
-  pullPolicy: IfNotPresent
-service:
-  type: LoadBalancer
-  port: 8080
-  targetPort: 8000

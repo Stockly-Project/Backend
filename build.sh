@@ -1,6 +1,6 @@
 cd ../
 
-mkdir -p output 
+mkdir -p output
 
 cp -R ./Backend/* ./output
 
