@@ -23,6 +23,7 @@ services:
       - .env  # 동일한 환경 변수 파일을 사용
     volumes:
       - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - app-network
 
