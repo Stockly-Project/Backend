@@ -29,3 +29,4 @@ tomli==2.0.2
 typing_extensions==4.12.2
 uuid==1.30
 uvicorn==0.31.0
+

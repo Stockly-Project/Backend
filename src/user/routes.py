@@ -1,4 +1,3 @@
-
 from xxlimited_35 import error
 
 from fastapi import APIRouter, Response, Request, HTTPException, Depends
@@ -33,6 +32,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
 
     # Redis에 세션 ID 저장 (유효 시간 설정: 1시간)
     await redis.set(session_id, user['id'], ex=3600)
+
 
     # 세션 ID를 쿠키에 저장
     response.set_cookie(key="session_id", value=session_id, httponly=True)

@@ -119,3 +119,4 @@ async def get_user_info_by_session(session_id: str, redis):
         email=user['email'],
         name=user['name']
     )
+
