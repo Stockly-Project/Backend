@@ -44,7 +44,7 @@ def create_user(UserCreateDTO):
 
 
 # Redis에서 세션 ID로 사용자 조회
-async def get_user_from_session(session_id: str, redis=Depends(get_redis)):
+async def get_user_from_session(session_id: str, redis):
     user_id_bytes = await redis.get(session_id)
 
     if user_id_bytes is None:
@@ -69,7 +69,7 @@ def soft_delete_user_by_session(user_id: int):
 
 
 # 세션 ID를 쿠키에서 가져와 인증하는 미들웨어
-async def get_authenticated_user_from_session_id(request: Request, redis=Depends(get_redis)):
+async def get_authenticated_user_from_session_id(request: Request, redis):
     session_id = request.cookies.get("session_id")
 
     if session_id is None:
@@ -90,7 +90,7 @@ def get_session_id(request: Request):
     return session_id
 
 # Redis에서 세션 ID를 저장하고 만료 시간 설정 (예: 1시간)
-async def create_session(response: Response, user_id: int, redis=Depends(get_redis)):
+async def create_session(response: Response, user_id: int, redis):
     session_id = str(uuid.uuid4())  # 세션 ID 생성
     await redis.set(session_id, user_id, ex=3600)  # Redis에 세션 저장 (유효시간: 1시간)
 
@@ -99,7 +99,7 @@ async def create_session(response: Response, user_id: int, redis=Depends(get_red
     return session_id
 
 # 세션 ID로 유저 정보 조회 및 UserResponseDTO 반환
-async def get_user_info_by_session(session_id: str, redis=Depends(get_redis)):
+async def get_user_info_by_session(session_id: str, redis):
     user_id = await get_user_from_session(session_id, redis)
 
     # 유저 ID로 유저 정보 조회

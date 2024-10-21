@@ -1,5 +1,7 @@
+from xxlimited_35 import error
+
 from fastapi import APIRouter, Response, Request, HTTPException, Depends
-from .schemas import UserCreateDTO, UserResponseDTO
+from .schemas import UserCreateDTO, UserResponseDTO, UserLoginDTO
 from .crud import create_user, get_user_by_email, soft_delete_user_by_session, get_authenticated_user_from_session_id, get_user_info_by_session
 from passlib.hash import bcrypt
 import uuid
@@ -18,7 +20,7 @@ async def signup(userdata: UserCreateDTO):
 
 # 로그인 엔드포인트 (세션 ID를 쿠키에 저장하고 Redis에 저장)
 @router.post('/login')
-async def login(response: Response, userdata: UserCreateDTO, redis=Depends(get_redis)):
+async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_redis)):
     user = get_user_by_email(userdata.email)
 
     # 비밀번호 확인
@@ -43,21 +45,21 @@ async def logout(response: Response):
     return {"message": "로그아웃 완료"}
 
 # 유저 소프트 딜리트 엔드포인트 (세션 기반)
-@router.delete('/delete')
-async def delete_user(request: Request):
+@router.delete('')
+async def delete_user(request: Request, redis=Depends(get_redis)):
     # 세션 ID에서 사용자 정보 가져오기
-    user_id = get_authenticated_user_from_session_id(request)
-
+    user_id = await get_authenticated_user_from_session_id(request,redis)
     # 유저 삭제 처리
-    return soft_delete_user_by_session(user_id)
+    deleteUser = soft_delete_user_by_session(user_id)
+    return deleteUser
 
 # 유저 정보 조회 (세션 기반)
 @router.get("", response_model=UserResponseDTO)
-async def get_user_info(request: Request):
+async def get_user_info(request: Request, redis=Depends(get_redis)):
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="세션 ID가 없습니다.")
 
     # 세션 ID로 유저 정보 조회
-    user_info = await get_user_info_by_session(session_id)
+    user_info = await get_user_info_by_session(session_id, redis)
     return user_info

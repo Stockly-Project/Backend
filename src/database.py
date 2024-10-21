@@ -1,11 +1,10 @@
 import mysql.connector
 from src.configs import HOST, USER, PASSWORD, DATABASE, REDIS_URL
 import redis.asyncio as aioredis
-import os
 
 # Redis 클라이언트 생성
 async def get_redis():
-    redis_url = "REDIS_URL"
+    redis_url = REDIS_URL
     redis = await aioredis.from_url(redis_url)
     return redis
 
