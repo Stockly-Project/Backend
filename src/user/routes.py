@@ -55,7 +55,7 @@ async def delete_user(request: Request, redis=Depends(get_redis)):
     return deleteUser
 
 # 유저 정보 조회 (세션 기반)
-@router.get("", response_model=UserResponseDTO)
+@router.get('', response_model=UserResponseDTO)
 async def get_user_info(request: Request, redis=Depends(get_redis)):
     session_id = request.cookies.get("session_id")
     if not session_id:
