@@ -4,6 +4,7 @@ from .kis_configs import get_approval
 import os
 
 try:
+    os.system('pip install --upgrade websocket -client')
     import websocket
 except ImportError:
     print("websocket-client 설치중입니다.")
