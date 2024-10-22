@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 import asyncio
 from kafka import KafkaConsumer
-from .producer import start_websocket, init_kafka_producer  # producer.py에서 WebSocket 관련 함수 import
+from .producer import start_websocket, init_kafka_producer, start_mock_websocket
 import json
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,7 +27,8 @@ async def run_websocket_background(stock_symbol: str):
     loop = asyncio.get_event_loop()
     producer = init_kafka_producer()  # Kafka Producer 초기화
     with ThreadPoolExecutor() as pool:
-        await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
+        # await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
+        await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)
     print(f"WebSocket background task started for stock symbol: {stock_symbol}")
 
 # 종목 코드에 따른 SSE 실시간 스트리밍 함수

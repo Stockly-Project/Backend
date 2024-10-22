@@ -3,6 +3,8 @@ from kafka import KafkaProducer
 from .kis_configs import get_approval
 import os
 import websocket
+import time
+import threading
 
 # Kafka Producer 초기화
 def init_kafka_producer():
@@ -93,3 +95,36 @@ def start_websocket(stock_symbol, producer):
     )
     print("데이터 내놔 제발")
     ws.run_forever()
+
+
+# 목데이터 생성 함수
+def generate_mock_stock_data(stock_symbol):
+    stock_data = {
+        "date": "2024-10-22",
+        "open": "30000",
+        "close": "30500",
+        "day_high": "31000",
+        "day_low": "29900",
+        "price_change": "+500",
+        "price_change_late": "+1.67%",
+        "volume": "500000",
+        "transaction_volume": "15000000",
+        "volume_price": "300000000"
+    }
+    return stock_data
+
+
+# WebSocket 대신 목데이터를 전송하는 함수
+def start_mock_websocket(stock_symbol, producer):
+    print("starting mock websocket")
+
+    def mock_send_data():
+        while True:
+            stock_data = generate_mock_stock_data(stock_symbol)
+            # Kafka로 목데이터 전송
+            send_to_kafka(producer, 'real_time_stock_prices', stock_data)
+            print(f"Sent mock data to Kafka: {stock_data}")
+            time.sleep(5)  # 5초마다 목데이터 전송
+
+    # 별도의 스레드에서 목데이터 전송
+    threading.Thread(target=mock_send_data).start()
