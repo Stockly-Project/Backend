@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, APIRouter
+from fastapi import FastAPI, APIRouter
 from starlette.middleware.cors import CORSMiddleware
 
 from src.user import routes as user_routes
+from src.stock import routes as stock_routes
 app = FastAPI()
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
+app.include_router(stock_routes.router)
 
 app.add_middleware(
     CORSMiddleware,

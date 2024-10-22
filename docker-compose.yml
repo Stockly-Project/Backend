@@ -1,21 +1,22 @@
 version: '3.8'
 
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    depends_on:
-      - mysql
-      - redis
-      - kafka
-    env_file:
-      - .env
-    restart: always
+
+  zookeeper:
+    image: 'bitnami/zookeeper:3.7'
     networks:
       - app-network
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+#      - ZOOKEEPER_CLIENT_PORT=2181
+#      - ZOOKEEPER_TICK_TIME=5000
+#      - ZOOKEEPER_INIT_LIMIT=5
+#      - ZOOKEEPER_SYNC_LIMIT=2
+#      - ZOOKEEPER_SERVER_ID=0
+    volumes:
+       - zookeeper_data:/bitnami
 
   mysql:
     image: mysql:latest
@@ -46,19 +47,6 @@ services:
     networks:
       - app-network
 
-  zookeeper:
-    image: 'bitnami/zookeeper:3.7'
-    networks:
-      - app-network
-    ports:
-      - "2181:2181"
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
-      - ZOOKEEPER_INIT_LIMIT=5
-      - ZOOKEEPER_SYNC_LIMIT=2
-
   kafka:
     image: 'bitnami/kafka:latest'
     networks:
@@ -70,14 +58,12 @@ services:
       - zookeeper
     environment:
       - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_BROKER_ID=0
-      - KAFKA_CLUSTER_ID=0
       - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://kafka:9094
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - ALLOW_PLAINTEXT_LISTENER=yes
     volumes:
-      - ./kafka-persistence:/bitnami/kafka
+      - kafka_data:/bitnami
 
   kafka-ui:
     image: provectuslabs/kafka-ui
@@ -94,10 +80,32 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
       KAFKA_CLUSTERS_0_READONLY: "false"
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mysql
+      - redis
+      - kafka
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   db_data:
-  kafka-persistence:
+  zookeeper_data:
+  kafka_data:

@@ -17,14 +17,7 @@ def get_approval(key, secret):
     # 요청을 보내고 응답을 확인
     res = requests.post(URL, headers=headers, data=json.dumps(body))
 
-    # 응답을 출력해서 확인해보기
-    print(f"Response Status Code: {res.status_code}")
-    print(f"Response Body: {res.text}")
-
     # 응답에서 approval_key 추출
     approval_key = res.json().get("approval_key")
-
-    # approval_key 출력
-    print(f"Approval Key: {approval_key}")
 
     return approval_key
