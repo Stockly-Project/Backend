@@ -26,10 +26,17 @@ async def get_redis():
     return redis
 
 def get_db_connection():
+    user = os.getenv("MYSQL_USER")
+    password = os.getenv("MYSQL_PASSWORD")
+    database = os.getenv("MYSQL_DATABASE")
+
+    # 디버깅용 출력
+    print(f"Connecting to MySQL with USER: {user}, PASSWORD: {password}, DATABASE: {database}")
+
     connection = mysql.connector.connect(
         host="mysql",
-        user=os.getenv("MYSQL_USER"),
-        password=os.getenv("MYSQL_PASSWORD"),
-        database=os.getenv("MYSQL_DATABASE")
+        user=user,
+        password=password,
+        database=database
     )
     return connection
