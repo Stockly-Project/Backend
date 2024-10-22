@@ -1,7 +1,6 @@
 import json
 from kafka import KafkaProducer
 from .kis_configs import get_approval
-from src.configs import APP_SECRET, APP_KEY
 import os
 
 try:
@@ -65,6 +64,9 @@ def on_error(ws, error):
 
 def on_close(ws, status_code, close_msg):
     print(f'WebSocket closed with status code={status_code}, message={close_msg}')
+
+APP_KEY = os.getenv("APP_KEY")
+APP_SECRET = os.getenv("APP_SECRET")
 
 def on_open(ws, stock_symbol, producer):
     b = {
