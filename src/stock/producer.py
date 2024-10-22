@@ -69,6 +69,7 @@ APP_KEY = os.getenv("APP_KEY")
 APP_SECRET = os.getenv("APP_SECRET")
 
 def on_open(ws, stock_symbol, producer):
+    print(APP_KEY, APP_SECRET, stock_symbol)
     b = {
         "header": {
             "approval_key": get_approval(APP_KEY, APP_SECRET),
