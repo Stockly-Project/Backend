@@ -21,7 +21,9 @@ import os
 
 
 async def get_redis():
-    redis_url = "redis://{}:{}".format(os.getenv("REDIS_HOST"), os.getenv("REDIS_PORT"))
+    redis_host = os.getenv("REDIS_HOST")
+    redis_port = os.getenv("REDIS_PORT")
+    redis_url = f"redis://{redis_host}:{redis_port}"
     redis = await aioredis.from_url(redis_url)
     return redis
 

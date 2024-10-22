@@ -8,4 +8,6 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 COPY . /code
 
+COPY ./init.sql /docker-entrypoint-initdb.d/
+
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
