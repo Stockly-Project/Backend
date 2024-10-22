@@ -2,14 +2,7 @@ import json
 from kafka import KafkaProducer
 from .kis_configs import get_approval
 import os
-
-try:
-    os.system('pip install --upgrade websocket -client')
-    import websocket
-except ImportError:
-    print("websocket-client 설치중입니다.")
-    os.system('python3 -m pip install websocket-client')
-
+import websocket
 
 # Kafka Producer 초기화
 def init_kafka_producer():

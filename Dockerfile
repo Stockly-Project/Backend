@@ -5,6 +5,8 @@ WORKDIR /code
 COPY ./src/requirements.txt /code/requirements.txt
 
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip uninstall websocket
+RUN pip install websocket-client
 
 COPY . /code
 
