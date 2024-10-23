@@ -16,7 +16,7 @@ router = APIRouter(
 def test_kafka_connection():
     try:
         # Kafka 브로커에 연결 (DNS 이름으로)
-        producer = KafkaProducer(bootstrap_servers=['10.106.136.218:9092'])
+        producer = KafkaProducer(bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'])
         # 테스트 메시지 전송
         future = producer.send('test-topic', b'Test message')
         # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
@@ -48,7 +48,7 @@ def kafka_consumer(stock_symbol: str):
     return KafkaConsumer(
         'real_time_stock_prices',
         # bootstrap_servers=['kafka:9092'],  # 도커 컴포즈로 작업 시 Kafka 브로커 주소
-        bootstrap_servers=['kafka-service:9092'],
+        bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
         auto_offset_reset='earliest',  # 이 부분에서 'earliest'는 처음부터 메시지를 읽음
         group_id=f'{stock_symbol}_consumer_group',
         value_deserializer=lambda x: json.loads(x.decode('utf-8'))
