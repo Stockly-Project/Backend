@@ -10,7 +10,7 @@ import threading
 def init_kafka_producer():
     return KafkaProducer(
         # bootstrap_servers=['kafka:9092'],  # 도커 컴포즈로 작업 시 Kafka 브로커 주소
-        bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
+        bootstrap_servers=['kafka.stockly.svc.cluster.local:9092'],
         api_version=(2, 0, 0),
         value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
     )
