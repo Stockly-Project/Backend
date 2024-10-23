@@ -5,12 +5,43 @@ from kafka import KafkaConsumer
 from .producer import start_websocket, init_kafka_producer, start_mock_websocket
 import json
 from concurrent.futures import ThreadPoolExecutor
-
+from kafka import KafkaProducer
 
 router = APIRouter(
     prefix="/api/v1/stockDetails",
     tags=["stockDetails"],
 )
+
+@router.get("/test-kafka-connection")
+def test_kafka_connection():
+    try:
+        # Kafka 브로커에 연결 (DNS 이름으로)
+        producer = KafkaProducer(bootstrap_servers=['kafka.default.svc.cluster.local:9092'])
+        # 테스트 메시지 전송
+        future = producer.send('test-topic', b'Test message')
+        # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
+        result = future.get(timeout=10)
+        producer.flush()
+        return {"message": "Kafka 연결 성공", "details": str(result)}
+    except Exception as e:
+        # 기타 예외 처리
+        return {"error": f"알 수 없는 오류 발생: {str(e)}"}
+
+@router.get("/test-kafka-connection2")
+def test_kafka_connection2():
+    try:
+        # Kafka 브로커에 연결 (DNS 이름으로)
+        producer = KafkaProducer(bootstrap_servers=['kafka:9092'])
+        # 테스트 메시지 전송
+        future = producer.send('test-topic', b'Test message')
+        # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
+        result = future.get(timeout=10)
+        producer.flush()
+        return {"message": "Kafka 연결 성공", "details": str(result)}
+    except Exception as e:
+        # 기타 예외 처리
+        return {"error": f"알 수 없는 오류 발생: {str(e)}"}
+
 
 # Kafka Consumer 설정
 def kafka_consumer(stock_symbol: str):
@@ -28,8 +59,8 @@ async def run_websocket_background(stock_symbol: str):
     loop = asyncio.get_event_loop()
     producer = init_kafka_producer()  # Kafka Producer 초기화
     with ThreadPoolExecutor() as pool:
-        # await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
-        await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)
+        await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
+        # await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)
     print(f"WebSocket background task started for stock symbol: {stock_symbol}")
 
 # 종목 코드에 따른 SSE 실시간 스트리밍 함수
