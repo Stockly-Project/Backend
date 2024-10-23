@@ -17,7 +17,7 @@ def kafka_consumer(stock_symbol: str):
     return KafkaConsumer(
         'real_time_stock_prices',
         # bootstrap_servers=['kafka:9092'],  # 도커 컴포즈로 작업 시 Kafka 브로커 주소
-        bootstrap_servers=['kafka.default.svc.cluster.local:9092'],
+        bootstrap_servers=['kafka-service:9092'],
         auto_offset_reset='earliest',  # 이 부분에서 'earliest'는 처음부터 메시지를 읽음
         group_id=f'{stock_symbol}_consumer_group',
         value_deserializer=lambda x: json.loads(x.decode('utf-8'))
