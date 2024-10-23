@@ -27,22 +27,6 @@ def test_kafka_connection():
         # 기타 예외 처리
         return {"error": f"알 수 없는 오류 발생: {str(e)}"}
 
-@router.get("/test-kafka-connection2")
-def test_kafka_connection2():
-    try:
-        # Kafka 브로커에 연결 (DNS 이름으로)
-        producer = KafkaProducer(bootstrap_servers=['kafka:9092'])
-        # 테스트 메시지 전송
-        future = producer.send('test-topic', b'Test message')
-        # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
-        result = future.get(timeout=10)
-        producer.flush()
-        return {"message": "Kafka 연결 성공", "details": str(result)}
-    except Exception as e:
-        # 기타 예외 처리
-        return {"error": f"알 수 없는 오류 발생: {str(e)}"}
-
-
 # Kafka Consumer 설정
 def kafka_consumer(stock_symbol: str):
     return KafkaConsumer(
