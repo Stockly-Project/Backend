@@ -16,7 +16,7 @@ router = APIRouter(
 def test_kafka_connection():
     try:
         # Kafka 브로커에 연결 (DNS 이름으로)
-        producer = KafkaProducer(bootstrap_servers=['kafka.stockly.svc.cluster.local:9092'])
+        producer = KafkaProducer(bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'])
         # 테스트 메시지 전송
         future = producer.send('test-topic', b'Test message')
         # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
