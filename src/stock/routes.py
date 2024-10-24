@@ -10,7 +10,6 @@ router = APIRouter(
     tags=["stockDetails"],
 )
 
-
 @router.get("/start-websocket/{stock_symbol}")
 async def start_websocket_connection(stock_symbol: str, background_tasks: BackgroundTasks):
     producer = init_kafka_producer()
