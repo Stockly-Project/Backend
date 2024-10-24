@@ -1,81 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import asyncio
 from kafka import KafkaConsumer
-from .producer import start_websocket, init_kafka_producer, start_mock_websocket
-import json
-from concurrent.futures import ThreadPoolExecutor
-from kafka import KafkaProducer
+from .producer import init_kafka_producer
+from .websocket import start_websocket, start_mock_websocket
 
 router = APIRouter(
     prefix="/api/v1/stockDetails",
     tags=["stockDetails"],
 )
 
-@router.get("/test-kafka-connection")
-def test_kafka_connection():
-    try:
-        # Kafka 브로커에 연결 (DNS 이름으로)
-        producer = KafkaProducer(bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'])
-        # 테스트 메시지 전송
-        future = producer.send('test-topic', b'Test message')
-        # 메시지 전송 확인 (블록킹 방식으로 전송 완료 여부 확인)
-        result = future.get(timeout=10)
-        producer.flush()
-        return {"message": "Kafka 연결 성공", "details": str(result)}
-    except Exception as e:
-        # 기타 예외 처리
-        return {"error": f"알 수 없는 오류 발생: {str(e)}"}
 
-# Kafka Consumer 설정
-def kafka_consumer(stock_symbol: str):
-    return KafkaConsumer(
-        'real_time_stock_prices',
-        # bootstrap_servers=['kafka:9092'],  # 도커 컴포즈로 작업 시 Kafka 브로커 주소
-        bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
-        auto_offset_reset='earliest',  # 이 부분에서 'earliest'는 처음부터 메시지를 읽음
-        group_id=f'{stock_symbol}_consumer_group',
-        value_deserializer=lambda x: json.loads(x.decode('utf-8'))
-    )
+@router.get("/start-websocket/{stock_symbol}")
+async def start_websocket_connection(stock_symbol: str, background_tasks: BackgroundTasks):
+    producer = init_kafka_producer()
+    # WebSocket 작업을 백그라운드에서 실행
+    background_tasks.add_task(start_websocket, stock_symbol, producer)
+    return {"message": f"Started WebSocket for {stock_symbol}"}
 
-# WebSocket 백그라운드 작업 실행
-async def run_websocket_background(stock_symbol: str):
-    loop = asyncio.get_event_loop()
-    producer = init_kafka_producer()  # Kafka Producer 초기화
-    with ThreadPoolExecutor() as pool:
-        await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
-        # await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)
-    print(f"WebSocket background task started for stock symbol: {stock_symbol}")
-
-# 종목 코드에 따른 SSE 실시간 스트리밍 함수
-@router.get("/{stock_symbol}/stream", response_class=StreamingResponse)
-async def stream_stock_data(stock_symbol: str):
-    print(f"Received SSE request for stock symbol: {stock_symbol}")
-
-    # WebSocket 데이터를 백그라운드에서 실행
-    asyncio.create_task(run_websocket_background(stock_symbol))
-
-    async def event_generator():
-        print("Initializing Kafka consumer...")
-        consumer = kafka_consumer(stock_symbol)  # Kafka Consumer 초기화
-        print(f"Kafka consumer created for stock symbol: {stock_symbol}")
-
-        try:
-            # Kafka 메시지를 지속적으로 읽어오기
-            for message in consumer:
-                stock_data = message.value
-                if stock_data:
-                    # SSE로 클라이언트에 메시지 전송
-                    yield f"data: {json.dumps(stock_data)}\n\n"
-                    print(f"Sending data to SSE for stock symbol {stock_symbol}: {stock_data}")
-                    await asyncio.sleep(0.1)  # 메시지 처리 속도 조절
-                else:
-                    print("No data received from Kafka.")
-        except Exception as e:
-            print(f"Error in Kafka consumer or SSE generator: {e}")
-        finally:
-            # 종료 처리
-            consumer.close()
-            print(f"Kafka consumer closed for stock symbol: {stock_symbol}")
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
