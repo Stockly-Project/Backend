@@ -4,7 +4,9 @@ import os
 import websocket
 import time
 import threading
-from .producer import send_to_kafka
+from .producer import send_to_kafka, init_kafka_producer
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # WebSocket 이벤트 핸들러
 def on_message(ws, data, producer):
@@ -77,6 +79,15 @@ def start_websocket(stock_symbol, producer):
         on_close=on_close
     )
     ws.run_forever()
+
+# 멀티스레딩을 사용하는 WebSocket 백그라운드 작업
+async def run_websocket_background(stock_symbol: str):
+    loop = asyncio.get_event_loop()
+    producer = init_kafka_producer()  # Kafka Producer 초기화
+    with ThreadPoolExecutor() as pool:
+        # 멀티스레딩으로 start_websocket을 실행
+        await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
+    print(f"WebSocket background task started for stock symbol: {stock_symbol}")
 
 
 # 목데이터 생성 함수
