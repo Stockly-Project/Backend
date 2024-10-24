@@ -7,6 +7,9 @@ import threading
 from .producer import send_to_kafka, init_kafka_producer
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from src.logger import logger
+import random
+
 
 # WebSocket 이벤트 핸들러
 def on_message(ws, data, producer):
@@ -33,27 +36,31 @@ def on_message(ws, data, producer):
                 # Kafka로 데이터 전송
                 send_to_kafka(producer, 'real_time_stock_prices', stock_data)
             else:
-                print(f"Received unexpected data format: {data}")
+                logger.debug(f"Received unexpected data format: {data}")
         else:
-            print(f"Received non-stock data: {data}")
+            logger.debug(f"Received non-stock data: {data}")
 
     except Exception as e:
-        print(f"Error processing message: {e}")
+        logger.error(f"Error processing message: {e}")
 
 def on_error(ws, error):
-    print('WebSocket error=', error)
+    logger.error(f'WebSocket error: {error}')
 
 def on_close(ws, status_code, close_msg):
-    print(f'WebSocket closed with status code={status_code}, message={close_msg}')
+    logger.info(f'WebSocket closed with status code={status_code}, message={close_msg}')  # 연결 종료 시 로그
 
 APP_KEY = os.getenv("APP_KEY")
 APP_SECRET = os.getenv("APP_SECRET")
 
 def on_open(ws, stock_symbol, producer):
-    print(APP_KEY, APP_SECRET, stock_symbol)
+    approval_key = get_approval(APP_KEY, APP_SECRET)
+    # 무작위로 User-Agent를 생성
+    user_agent = f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.{random.randrange(99)} (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36"
     b = {
         "header": {
-            "approval_key": get_approval(APP_KEY, APP_SECRET),
+            "User-Agent": user_agent,
+            "appkey": APP_KEY,
+            "appsecret": APP_SECRET,
             "custtype": "P",
             "tr_type": "1",
             "content-type": "utf-8"
@@ -65,12 +72,12 @@ def on_open(ws, stock_symbol, producer):
             }
         }
     }
-    print('Sending initial WebSocket request')
+    logger.debug('Sending initial WebSocket request')
     ws.send(json.dumps(b), websocket.ABNF.OPCODE_TEXT)
 
 # WebSocket 시작 함수
 def start_websocket(stock_symbol, producer):
-    print("starting websocket")
+    logger.info(f"Starting WebSocket for stock symbol: {stock_symbol}")
     ws = websocket.WebSocketApp(
         "ws://ops.koreainvestment.com:31000",
         on_open=lambda ws: on_open(ws, stock_symbol, producer),
@@ -86,9 +93,9 @@ async def run_websocket_background(stock_symbol: str):
     producer = init_kafka_producer()  # Kafka Producer 초기화
     with ThreadPoolExecutor() as pool:
         # 멀티스레딩으로 start_websocket을 실행
-        await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)
-    print(f"WebSocket background task started for stock symbol: {stock_symbol}")
-
+        # await loop.run_in_executor(pool, start_websocket, stock_symbol, producer)  # 실제 WebSocket 사용
+        await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)  # 목데이터 테스트
+    logger.debug(f"WebSocket background task started for stock symbol: {stock_symbol}")
 
 # 목데이터 생성 함수
 def generate_mock_stock_data(stock_symbol):
@@ -109,14 +116,14 @@ def generate_mock_stock_data(stock_symbol):
 
 # WebSocket 대신 목데이터를 전송하는 함수
 def start_mock_websocket(stock_symbol, producer):
-    print("starting mock websocket")
+    logger.debug("starting mock websocket")
 
     def mock_send_data():
         while True:
             stock_data = generate_mock_stock_data(stock_symbol)
             # Kafka로 목데이터 전송
             send_to_kafka(producer, 'real_time_stock_prices', stock_data)
-            print(f"Sent mock data to Kafka: {stock_data}")
+            logger.debug(f"Sent mock data to Kafka: {stock_data}")
             time.sleep(5)  # 5초마다 목데이터 전송
 
     # 별도의 스레드에서 목데이터 전송

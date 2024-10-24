@@ -3,11 +3,54 @@ from starlette.middleware.cors import CORSMiddleware
 
 from src.user import routes as user_routes
 from src.stock import routes as stock_routes
-app = FastAPI()
+
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from .stock.websocket import run_websocket_background
+import asyncio
+from .logger import logger
+
+# 미리 지정된 주식 종목 리스트
+stocks_to_track = ['005930', '037270', '000660']  # 삼성전자, YG PLUS, SK하이닉스
+
+# WebSocket 스케줄링 함수
+def schedule_websockets():
+    loop = asyncio.new_event_loop()  # 새로운 이벤트 루프 생성
+    asyncio.set_event_loop(loop)
+    tasks = []
+    for stock_symbol in stocks_to_track:
+        task = loop.create_task(run_websocket_background(stock_symbol))
+        task.add_done_callback(lambda t: logger.debug(f"Task completed for stock: {stock_symbol}, result: {t.result()}"))
+        tasks.append(task)
+    loop.run_until_complete(asyncio.gather(*tasks))  # 모든 작업 완료까지 대기
+    logger.debug("Started WebSocket for all predefined stocks")
+
+
+# lifespan 핸들러 설정
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = AsyncIOScheduler()
+
+    # 매일 오전 9시 또는 매 분마다 작업 실행
+    # scheduler.add_job(schedule_websockets, CronTrigger(hour=9, minute=0))
+    scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
+
+    scheduler.start()
+    logger.debug("Scheduler started to track stocks at 9 AM daily")
+
+    yield
+    scheduler.shutdown()
+
+# FastAPI 애플리케이션 선언과 lifespan 핸들러 적용
+app = FastAPI(lifespan=lifespan)
+
+# 라우터 설정
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
 app.include_router(stock_routes.router)
 
+# CORS 미들웨어 추가
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,3 +62,7 @@ app.add_middleware(
 @app.get("/")
 def hello():
     return {"message": "메인페이지입니다"}
+
+@app.get("/lifespan")
+async def root():
+    return {"message": "Scheduler is running to track stock prices at 9 AM"}

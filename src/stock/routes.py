@@ -1,5 +1,4 @@
 from fastapi import APIRouter, BackgroundTasks
-from .producer import init_kafka_producer
 from .websocket import run_websocket_background, start_mock_websocket
 
 router = APIRouter(

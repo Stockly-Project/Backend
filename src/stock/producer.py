@@ -1,5 +1,6 @@
 import json
 from kafka import KafkaProducer
+from src.logger import logger
 
 # Kafka Producer 초기화
 def init_kafka_producer():
@@ -16,7 +17,7 @@ def send_to_kafka(producer, topic, data):
         data["job_id"] = "stock_chart_detail"
         producer.send(topic, data)
         producer.flush()
-        print(f"Sent to Kafka: {data}")
+        logger.info(f"Sent to Kafka: {data}")
     except Exception as e:
-        print(f"Error sending to Kafka: {e}")
+        logger.info(f"Error sending to Kafka: {e}")
 
