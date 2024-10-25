@@ -12,7 +12,7 @@ import asyncio
 from .logger import logger
 
 # 미리 지정된 주식 종목 리스트
-stocks_to_track = ['005930', '037270', '000660']  # 삼성전자, YG PLUS, SK하이닉스
+stocks_to_track = ['005930']  # 삼성전자
 
 # WebSocket 스케줄링 함수
 def schedule_websockets():
@@ -43,8 +43,9 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 # FastAPI 애플리케이션 선언과 lifespan 핸들러 적용
-app = FastAPI(lifespan=lifespan)
+# app = FastAPI(lifespan=lifespan)
 
+app = FastAPI()
 # 라우터 설정
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
@@ -63,6 +64,6 @@ app.add_middleware(
 def hello():
     return {"message": "메인페이지입니다"}
 
-@app.get("/lifespan")
-async def root():
-    return {"message": "Scheduler is running to track stock prices at 9 AM"}
+# @app.get("/lifespan")
+# async def root():
+#     return {"message": "Scheduler is running to track stock prices at 9 AM"}

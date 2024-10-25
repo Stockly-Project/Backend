@@ -12,7 +12,7 @@ import random
 
 
 # WebSocket 이벤트 핸들러
-def on_message(ws, data, producer):
+def on_message(ws, data, producer, stock_symbol):
     print(f"Received WebSocket message: {data}")
     try:
         if data[0] in ['0', '1']:  # 시세 데이터일 경우
@@ -34,7 +34,7 @@ def on_message(ws, data, producer):
                 }
 
                 # Kafka로 데이터 전송
-                send_to_kafka(producer, 'real_time_stock_prices', stock_data)
+                send_to_kafka(producer, stock_symbol, stock_data)
             else:
                 logger.debug(f"Received unexpected data format: {data}")
         else:
@@ -54,7 +54,6 @@ APP_SECRET = os.getenv("APP_SECRET")
 
 def on_open(ws, stock_symbol, producer):
     approval_key = get_approval(APP_KEY, APP_SECRET)
-    # 무작위로 User-Agent를 생성
     user_agent = f"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.{random.randrange(99)} (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36"
     b = {
         "header": {
@@ -81,7 +80,7 @@ def start_websocket(stock_symbol, producer):
     ws = websocket.WebSocketApp(
         "ws://ops.koreainvestment.com:31000",
         on_open=lambda ws: on_open(ws, stock_symbol, producer),
-        on_message=lambda ws, data: on_message(ws, data, producer),
+        on_message=lambda ws, data: on_message(ws, data, producer, stock_symbol),
         on_error=on_error,
         on_close=on_close
     )
@@ -97,10 +96,12 @@ async def run_websocket_background(stock_symbol: str):
         await loop.run_in_executor(pool, start_mock_websocket, stock_symbol, producer)  # 목데이터 테스트
     logger.debug(f"WebSocket background task started for stock symbol: {stock_symbol}")
 
+
 # 목데이터 생성 함수
 def generate_mock_stock_data(stock_symbol):
     stock_data = {
-        "date": "2024-10-22",
+        "symbol": stock_symbol,
+        "date": "135950",
         "open": "30000",
         "close": "30500",
         "day_high": "31000",
@@ -113,7 +114,6 @@ def generate_mock_stock_data(stock_symbol):
     }
     return stock_data
 
-
 # WebSocket 대신 목데이터를 전송하는 함수
 def start_mock_websocket(stock_symbol, producer):
     logger.debug("starting mock websocket")
@@ -122,9 +122,8 @@ def start_mock_websocket(stock_symbol, producer):
         while True:
             stock_data = generate_mock_stock_data(stock_symbol)
             # Kafka로 목데이터 전송
-            send_to_kafka(producer, 'real_time_stock_prices', stock_data)
+            send_to_kafka(producer, stock_symbol, stock_data)
             logger.debug(f"Sent mock data to Kafka: {stock_data}")
             time.sleep(5)  # 5초마다 목데이터 전송
 
-    # 별도의 스레드에서 목데이터 전송
     threading.Thread(target=mock_send_data).start()

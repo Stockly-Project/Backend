@@ -12,12 +12,12 @@ def init_kafka_producer():
     )
 
 # Kafka에 메시지 전송 함수
-def send_to_kafka(producer, topic, data):
+def send_to_kafka(producer, stock_symbol, data):
     try:
         data["job_id"] = "stock_chart_detail"
+        topic = f"real_time_stock_prices_{stock_symbol}"  # 심볼 기반으로 토픽 설정
         producer.send(topic, data)
         producer.flush()
-        logger.info(f"Sent to Kafka: {data}")
+        logger.info(f"Sent to Kafka topic {topic}: {data}")
     except Exception as e:
         logger.info(f"Error sending to Kafka: {e}")
-
