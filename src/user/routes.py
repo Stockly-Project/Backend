@@ -1,4 +1,3 @@
-from xxlimited_35 import error
 
 from fastapi import APIRouter, Response, Request, HTTPException, Depends
 from .schemas import UserCreateDTO, UserResponseDTO, UserLoginDTO
