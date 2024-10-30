@@ -63,7 +63,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/")
 def hello():
     return {"message": "메인페이지입니다"}

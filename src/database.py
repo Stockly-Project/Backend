@@ -15,7 +15,8 @@ import os
 #         host=HOST,
 #         user=USER,
 #         password=PASSWORD,
-#         database=DATABASE
+#         database=DATABASE,
+#         charset="utf8mb4"
 #     )
 #     return connection
 
@@ -30,13 +31,12 @@ def get_db_connection():
     password = os.getenv("MYSQL_PASSWORD")
     database = os.getenv("MYSQL_DATABASE")
 
-    # 디버깅용 출력
-    print(f"Connecting to MySQL with USER: {user}, PASSWORD: {password}, DATABASE: {database}")
-
     connection = mysql.connector.connect(
         host="mysql",
         user=user,
         password=password,
-        database=database
+        database=database,
+        charset="utf8mb4",
+        use_unicode=True
     )
     return connection
