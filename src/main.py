@@ -45,8 +45,8 @@ async def lifespan(app: FastAPI):
     yield
     scheduler.shutdown()
 
-# app = FastAPI(lifespan=lifespan)
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
+# app = FastAPI()
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
 app.include_router(stock_routes.router)
