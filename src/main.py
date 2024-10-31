@@ -5,13 +5,12 @@ from src.stock import routes as stock_routes
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from .stock.websocket import run_websocket_background, start_mock_websocket
+from .stock.websocket import run_websocket_background_single, run_mock_websocket_background_single
 import asyncio
 from .logger import logger
 
 # 미리 지정된 주식 종목 리스트
 stocks_to_track = ['005930']  # 삼성전자
-
 
 # WebSocket 스케줄링 함수
 def schedule_websockets():
@@ -24,13 +23,12 @@ def schedule_websockets():
 
     for stock_symbol in stocks_to_track:
         # task = loop.create_task(run_websocket_background(stock_symbol))
-        task = loop.create_task(start_mock_websocket(stock_symbol))
+        task = loop.create_task(run_mock_websocket_background_single(stock_symbol))
         task.add_done_callback(
             lambda t: logger.debug(f"Task completed for stock: {stock_symbol}"))
         tasks.append(task)
 
     loop.run_until_complete(asyncio.gather(*tasks))  # 모든 작업 완료까지 대기
-    logger.debug("Started WebSocket for all predefined stocks with interval filtering")
 
 
 # lifespan 핸들러 설정
@@ -43,13 +41,12 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
 
     scheduler.start()
-    logger.debug("Scheduler started to track stocks at 9 AM daily")
 
     yield
     scheduler.shutdown()
 
-app = FastAPI(lifespan=lifespan)
-# app = FastAPI()
+# app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
 app.include_router(stock_routes.router)
