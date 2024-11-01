@@ -2,10 +2,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from .crud import get_company_by_symbol
 from .schemas import CompanyResponse
 from .crud import get_symbols_for_page
-import websocket
-from .websocket import run_websocket_background_multiple, sse_event_generator, run_websocket_background_single, run_mock_websocket_background_multiple
+from .websocket import run_websocket_background_single
+from .multi_websocket import run_websocket_background_multiple, sse_event_generator
 from fastapi.responses import StreamingResponse
-from src.logger import logger
 
 # FastAPI 설정
 router = APIRouter(
@@ -41,10 +40,8 @@ async def get_company_info(symbol: str):
     }
 
 
-# SSE 엔드포인트 - 다중 회사 : 필터링 로직 필요함
 @router.get("/stream/multiple")
 async def sse_stream_multiple(page: int = Query(1)):
-    stock_symbols = get_symbols_for_page(page)
-    # data_queue = await run_mock_websocket_background_multiple(stock_symbols)
-    data_queue = await run_websocket_background_multiple(stock_symbols)
+    stocks = get_symbols_for_page(page)  # `stocks`는 `List[Dict[str, str]]` 형태
+    data_queue = await run_websocket_background_multiple(stocks)  # `stocks`를 인자로 전달
     return StreamingResponse(sse_event_generator(data_queue), media_type="text/event-stream")
