@@ -8,9 +8,18 @@ from apscheduler.triggers.cron import CronTrigger
 from .stock.websocket import run_websocket_background_single, run_mock_websocket_background_single
 import asyncio
 from .logger import logger
+from .stock.crud import get_symbols_for_page
+from typing import List
 
 # 미리 지정된 주식 종목 리스트
 stocks_to_track = ['005930']  # 삼성전자
+
+def get_symbol_list(page: int, page_size: int = 20) -> List[str]:
+    stocks = get_symbols_for_page(page, page_size)
+    symbol_list = [stock["symbol"] for stock in stocks]
+    return symbol_list
+
+symbol_list = get_symbol_list(1)
 
 # WebSocket 스케줄링 함수
 def schedule_websockets():
@@ -21,9 +30,9 @@ def schedule_websockets():
     # 기본 필터링 주기 예: 1m
     interval = "1m"
 
-    for stock_symbol in stocks_to_track:
-        # task = loop.create_task(run_websocket_background(stock_symbol))
-        task = loop.create_task(run_mock_websocket_background_single(stock_symbol))
+    for stock_symbol in symbol_list:
+        task = loop.create_task(run_websocket_background_single(stock_symbol))
+        # task = loop.create_task(run_mock_websocket_background_single(stock_symbol))
         task.add_done_callback(
             lambda t: logger.debug(f"Task completed for stock: {stock_symbol}"))
         tasks.append(task)

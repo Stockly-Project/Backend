@@ -4,7 +4,7 @@ import websocket
 import threading
 from typing import Dict, List
 import os
-from .kis_configs import get_approval
+from src.common.kis_configs import get_approval
 from src.logger import logger
 import random
 import time

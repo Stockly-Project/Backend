@@ -17,7 +17,6 @@ async def start_websocket_connection(
     stock_symbol: str,
     background_tasks: BackgroundTasks,
 ):
-    # background_tasks.add_task(run_websocket_background, stock_symbol)
     background_tasks.add_task(run_websocket_background_single, stock_symbol)
     return {"message": f"Started WebSocket for {stock_symbol}"}
 
