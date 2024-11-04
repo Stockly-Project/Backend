@@ -3,12 +3,12 @@ import os
 import websocket
 import threading
 import time
-import random
 import asyncio
 from typing import Dict, List
 from src.common.producer import send_to_kafka, init_kafka_producer
 from src.logger import logger
 import requests
+import random
 
 APP_KEY = os.getenv("APP_KEY")
 APP_SECRET = os.getenv("APP_SECRET")
@@ -20,28 +20,28 @@ producer = init_kafka_producer()
 # 캐시된 승인 키
 approval_key_cache = None
 
-def get_approval(key, secret):
+def get_approval(app_key, app_secret):
     global approval_key_cache
     if approval_key_cache:
-        return approval_key_cache  # 캐시된 승인 키 사용
+        return approval_key_cache
 
-    url = 'https://openapivts.koreainvestment.com:29443'
+    url = 'https://openapivts.koreainvestment.com:29443/oauth2/Approval'
     headers = {"content-type": "application/json"}
     body = {
         "grant_type": "client_credentials",
-        "appkey": key,
-        "secretkey": secret
+        "appkey": app_key,
+        "secretkey": app_secret
     }
-    PATH = "oauth2/Approval"
-    URL = f"{url}/{PATH}"
 
-    res = requests.post(URL, headers=headers, data=json.dumps(body))
-    approval_key = res.json().get("approval_key")
-    approval_key_cache = approval_key  # 승인 키 캐시
+    response = requests.post(url, headers=headers, data=json.dumps(body))
+    if response.status_code == 200 and "approval_key" in response.json():
+        approval_key = response.json()["approval_key"]
+        approval_key_cache = approval_key
+        return approval_key
+    else:
+        logger.error(f"Failed to get approval key: {response.text}")
+        return None
 
-    return approval_key
-
-# 구독 메시지 생성 함수
 def build_message(app_key, tr_id, tr_key, tr_type="1"):
     header = {
         "approval_key": app_key,
@@ -52,19 +52,24 @@ def build_message(app_key, tr_id, tr_key, tr_type="1"):
     body = {"input": {"tr_id": tr_id, "tr_key": tr_key}}
     return json.dumps({"header": header, "body": body})
 
-# 종목 구독 함수
+# 구독 함수
 def subscribe(ws, tr_id, app_key, stock_code):
     message = build_message(app_key, tr_id, stock_code)
     ws.send(message)
-    time.sleep(1)  # 지연 시간 증가
+    time.sleep(0.5)  # 지연 시간을 0.5초로 설정
 
 # WebSocket 연결 후 다중 종목 구독 설정
 def on_open(ws, stock_symbols):
     approval_key = get_approval(APP_KEY, APP_SECRET)
+    if not approval_key:
+        logger.error("Approval key not obtained, terminating connection.")
+        ws.close()
+        return
+
     for stock in stock_symbols:
         stock_code = stock["symbol"]
-        subscribe(ws, "H0STASP0", approval_key, stock_code)  # 실시간 호가 구독
-        subscribe(ws, "H0STCNT0", approval_key, stock_code)  # 실시간 체결 구독
+        subscribe(ws, "H0STASP0", approval_key, stock_code)
+        subscribe(ws, "H0STCNT0", approval_key, stock_code)
         logger.debug(f"Subscribed to BID_ASK and CONTRACT for {stock_code}")
 
 # WebSocket 에러 및 종료 핸들러
@@ -83,7 +88,6 @@ def process_data_for_kafka(data, stock_symbol):
         if len(d1) >= 4:
             recvData = d1[3]
             result = recvData.split("^")
-
             if len(result) > 12:
                 stock_data = {
                     "symbol": stock_symbol,
@@ -114,22 +118,16 @@ def process_data_for_sse(data, stock_info):
         if len(d1) >= 4:
             recvData = d1[3]
             result = recvData.split("^")
-
             if len(result) > 12:
-                close = float(result[2])
-                rate_price = float(result[4])
-                rate = float(result[5])
-                volume = int(result[12])
-
                 stock_data = {
                     "id": int(stock_info.get("id", 0)),
                     "name": stock_info.get("name", ""),
                     "symbol": stock_info.get("symbol", ""),
-                    "close": close,
-                    "rate_price": rate_price,
-                    "rate": rate,
-                    "volume": volume,
-                    "volume_price": volume * close
+                    "close": float(result[2]),
+                    "rate_price": float(result[4]),
+                    "rate": float(result[5]),
+                    "volume": int(result[12]),
+                    "volume_price": float(result[2]) * int(result[12])
                 }
                 return stock_data
             else:
@@ -147,22 +145,30 @@ async def sse_event_generator(data_queue: asyncio.Queue):
 
 # WebSocket 메시지 핸들러
 def handle_message(ws, message, stock_symbols, data_queue):
-    if message[0] in ['0', '1']:
-        for stock_info in stock_symbols:
-            stock_symbol = stock_info["symbol"]
+    try:
+        message_data = json.loads(message)
+        tr_id = message_data.get("header", {}).get("tr_id")
+        if tr_id in ["H0STASP0", "H0STCNT0"] and message_data.get("body", {}).get("rt_cd") == "1":
+            logger.info(f"Subscription confirmation for {tr_id} - {message_data}")
+            return
 
-            # Kafka로 전송할 데이터 처리
-            kafka_data = process_data_for_kafka(message, stock_symbol)
-            if kafka_data:
-                send_to_kafka(producer, TOPIC_STOCK_DATA, kafka_data)
+        if message[0] in ['0', '1']:
+            for stock_info in stock_symbols:
+                stock_symbol = stock_info["symbol"]
 
-            # SSE로 전송할 데이터 처리
-            sse_data = process_data_for_sse(message, stock_info)
-            if sse_data:
-                logger.debug(f"SSE Data: {sse_data}")
-                data_queue.put_nowait(sse_data)
-    else:
-        logger.info(f"Received non-stock message: {message[:100]}")
+                kafka_data = process_data_for_kafka(message, stock_symbol)
+                if kafka_data:
+                    send_to_kafka(producer, TOPIC_STOCK_DATA, kafka_data)
+
+                sse_data = process_data_for_sse(message, stock_info)
+                if sse_data:
+                    logger.debug(f"SSE Data: {sse_data}")
+                    data_queue.put_nowait(sse_data)
+        else:
+            logger.info(f"Received non-stock message: {message[:100]}")
+
+    except json.JSONDecodeError:
+        logger.error(f"Failed to parse message as JSON: {message[:100]}")
 
 # WebSocket 연결 설정 및 스레드 실행
 def websocket_thread(stock_symbols, data_queue):
@@ -180,12 +186,11 @@ def websocket_thread(stock_symbols, data_queue):
                 on_error=on_error,
                 on_close=on_close
             )
-            ws.run_forever(ping_interval=30)  # Ping 간격을 30초로 줄임
+            ws.run_forever(ping_interval=60)
             logger.info("WebSocket thread has been terminated.")
-
         except Exception as e:
             logger.error(f"WebSocket error occurred: {e}")
-            time.sleep(5)  # 재연결 시도 전 5초 대기
+            time.sleep(5)
             logger.info("Attempting to reconnect WebSocket...")
 
 # WebSocket 백그라운드 실행 함수
@@ -194,7 +199,6 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
     ws_thread = threading.Thread(target=websocket_thread, args=(stock_symbols, data_queue))
     ws_thread.start()
     return data_queue
-
 
 
 
