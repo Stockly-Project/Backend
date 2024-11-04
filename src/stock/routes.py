@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Query
 from .crud import get_company_by_symbol
 from .schemas import CompanyResponse
-from .websocket import run_websocket_background_multiple, sse_event_generator
+from .websocket import run_websocket_background_multiple
 from fastapi.responses import StreamingResponse
-from .crud import get_symbol_list
+from .crud import get_symbols_for_page
 
 # FastAPI 설정
 router = APIRouter(
@@ -28,9 +28,9 @@ async def get_company_info(symbol: str):
     }
 
 
-@router.get("/stream/multiple")
-async def sse_stream_multiple(page: int = Query(1)):
-    # 심볼 목록을 가져와서 WebSocket 연결 시작
-    symbols = [{"symbol": symbol} for symbol in get_symbol_list(page)]  # 페이지에 따른 심볼 목록 가져오기
-    data_queue = await run_websocket_background_multiple(symbols)
-    return StreamingResponse(sse_event_generator(data_queue), media_type="text/event-stream")
+# @router.get("/stream/multiple")
+# async def sse_stream_multiple(page: int = Query(1)):
+#     # 심볼 목록을 가져와서 WebSocket 연결 시작
+#     symbols = [{"symbol": symbol} for symbol in get_symbols_for_page(page)]  # 페이지에 따른 심볼 목록 가져오기
+#     data_queue = await run_websocket_background_multiple(symbols)
+#     return StreamingResponse(sse_event_generator(data_queue), media_type="text/event-stream")

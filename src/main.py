@@ -7,19 +7,18 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from .stock.websocket import run_websocket_background_multiple
 from .logger import logger
-from .stock.crud import get_symbol_list
+from .stock.crud import get_symbols_for_page
 
 
 # WebSocket 스케줄링 함수
 async def schedule_websockets():
-    symbol_list = get_symbol_list(1)
+    symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
     try:
         # 다중 심볼을 한 번의 WebSocket으로 처리하도록 symbol_list 전체를 전달
-        await run_websocket_background_multiple(symbol_list)
+        await run_websocket_background_multiple(symbol_list)  # Kafka 전송 활성화
         logger.debug("WebSocket task completed for multiple stocks.")
     except Exception as e:
         logger.error(f"Error in WebSocket scheduling task: {e}")
-
 
 # lifespan 핸들러 설정
 @asynccontextmanager
@@ -37,8 +36,8 @@ async def lifespan(app: FastAPI):
     finally:
         scheduler.shutdown(wait=False)
         logger.info("Scheduler and WebSocket connections are shut down.")
-# app = FastAPI(lifespan=lifespan)
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
+# app = FastAPI()
 router = APIRouter(prefix="/api/v1")
 app.include_router(user_routes.router)
 app.include_router(stock_routes.router)

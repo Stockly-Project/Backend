@@ -9,6 +9,7 @@ from src.common.producer import send_to_kafka, init_kafka_producer
 from src.logger import logger
 import requests
 import random
+from .crud import get_company_details
 
 APP_KEY = os.getenv("APP_KEY")
 APP_SECRET = os.getenv("APP_SECRET")
@@ -56,7 +57,7 @@ def build_message(app_key, tr_id, tr_key, tr_type="1"):
 def subscribe(ws, tr_id, app_key, stock_code):
     message = build_message(app_key, tr_id, stock_code)
     ws.send(message)
-    time.sleep(0.5)  # 지연 시간을 0.5초로 설정
+    time.sleep(2.0)
 
 # WebSocket 연결 후 다중 종목 구독 설정
 def on_open(ws, stock_symbols):
@@ -68,7 +69,7 @@ def on_open(ws, stock_symbols):
 
     for stock in stock_symbols:
         stock_code = stock["symbol"]
-        subscribe(ws, "H0STASP0", approval_key, stock_code)
+        # subscribe(ws, "H0STASP0", approval_key, stock_code)
         subscribe(ws, "H0STCNT0", approval_key, stock_code)
         logger.debug(f"Subscribed to BID_ASK and CONTRACT for {stock_code}")
 
@@ -83,6 +84,13 @@ def on_close(ws, status_code, close_msg):
 
 # Kafka로 전송할 주식 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
+    stock_info = get_company_details(stock_symbol)  # 데이터베이스에서 회사 정보 조회
+    id = stock_info.get("id")
+    name = stock_info.get("name")
+    if not stock_info or "id" not in stock_info or "name" not in stock_info:
+        logger.error(f"No valid company information for symbol: {stock_symbol}")
+        return None
+
     try:
         d1 = data.split("|")
         if len(d1) >= 4:
@@ -90,6 +98,8 @@ def process_data_for_kafka(data, stock_symbol):
             result = recvData.split("^")
             if len(result) > 12:
                 stock_data = {
+                    "id": id,
+                    "name": name,
                     "symbol": stock_symbol,
                     "date": result[1],
                     "open": result[7],
@@ -107,71 +117,33 @@ def process_data_for_kafka(data, stock_symbol):
         logger.error(f"Error processing stock data for Kafka: {e}")
     return None
 
-# SSE로 전송할 주식 데이터 처리 함수
-def process_data_for_sse(data, stock_info):
-    try:
-        if not isinstance(stock_info, dict):
-            logger.error(f"Expected `stock_info` as dict, but got {type(stock_info)} with value {stock_info}")
-            return None
 
-        d1 = data.split("|")
-        if len(d1) >= 4:
-            recvData = d1[3]
-            result = recvData.split("^")
-            if len(result) > 12:
-                stock_data = {
-                    "id": int(stock_info.get("id", 0)),
-                    "name": stock_info.get("name", ""),
-                    "symbol": stock_info.get("symbol", ""),
-                    "close": float(result[2]),
-                    "rate_price": float(result[4]),
-                    "rate": float(result[5]),
-                    "volume": int(result[12]),
-                    "volume_price": float(result[2]) * int(result[12])
-                }
-                return stock_data
-            else:
-                logger.error(f"Unexpected result format for data: {result}")
-    except (IndexError, ValueError, TypeError) as e:
-        logger.error(f"Error processing stock data for SSE: {e}")
-    return None
-
-# SSE 이벤트 생성기
-async def sse_event_generator(data_queue: asyncio.Queue):
-    while True:
-        data = await data_queue.get()
-        yield f"data: {json.dumps(data)}\n\n"
-        await asyncio.sleep(0.3)
-
-# WebSocket 메시지 핸들러
 def handle_message(ws, message, stock_symbols, data_queue):
-    try:
-        message_data = json.loads(message)
-        tr_id = message_data.get("header", {}).get("tr_id")
-        if tr_id in ["H0STASP0", "H0STCNT0"] and message_data.get("body", {}).get("rt_cd") == "1":
-            logger.info(f"Subscription confirmation for {tr_id} - {message_data}")
-            return
+    if message.startswith("{"):
+        # JSON 메시지 처리
+        try:
+            message_data = json.loads(message)
+            tr_id = message_data.get("header", {}).get("tr_id")
+            if tr_id in ["H0STASP0", "H0STCNT0"] and message_data.get("body", {}).get("rt_cd") == "1":
+                logger.info(f"Subscription confirmation for {tr_id} - {message_data}")
+                return
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse message as JSON: {message[:100]}")
+    else:
+        # 구분자 형식 데이터 처리
+        d1 = message.split("|")
+        if len(d1) >= 3:
+            tr_id, stock_symbol = d1[1], d1[3].split("^")[0]
+            logger.debug(f"Processing data for tr_id: {tr_id}, stock_symbol: {stock_symbol}")
 
-        if message[0] in ['0', '1']:
-            for stock_info in stock_symbols:
-                stock_symbol = stock_info["symbol"]
+            kafka_data = process_data_for_kafka(message, stock_symbol)
+            if kafka_data:
+                send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(kafka_data))
 
-                kafka_data = process_data_for_kafka(message, stock_symbol)
-                if kafka_data:
-                    send_to_kafka(producer, TOPIC_STOCK_DATA, kafka_data)
 
-                sse_data = process_data_for_sse(message, stock_info)
-                if sse_data:
-                    logger.debug(f"SSE Data: {sse_data}")
-                    data_queue.put_nowait(sse_data)
-        else:
-            logger.info(f"Received non-stock message: {message[:100]}")
-
-    except json.JSONDecodeError:
-        logger.error(f"Failed to parse message as JSON: {message[:100]}")
 
 # WebSocket 연결 설정 및 스레드 실행
-def websocket_thread(stock_symbols, data_queue):
+def websocket_thread(stock_symbols, data_queue):  # kafka_enabled 인수를 추가
     logger.info("Starting WebSocket thread for symbols: %s", stock_symbols)
 
     def on_open_wrapper(ws):
@@ -190,7 +162,7 @@ def websocket_thread(stock_symbols, data_queue):
             logger.info("WebSocket thread has been terminated.")
         except Exception as e:
             logger.error(f"WebSocket error occurred: {e}")
-            time.sleep(5)
+            time.sleep(0.3)
             logger.info("Attempting to reconnect WebSocket...")
 
 # WebSocket 백그라운드 실행 함수
@@ -202,11 +174,16 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
 
 
 
-
-
-
-
-
+# SSE 이벤트 생성기
+# async def sse_event_generator(data_queue: asyncio.Queue):
+#     buffer = []  # 한 번에 전송할 데이터를 모으기 위한 버퍼
+#     while True:
+#         data = await data_queue.get()
+#         buffer.append(data)  # 버퍼에 데이터 추가
+#         if len(buffer) >= 20:  # 20개 데이터가 모이면 전송
+#             yield f"data: {json.dumps(buffer)}\n\n"
+#             buffer.clear()  # 전송 후 버퍼 초기화
+#         await asyncio.sleep(0.3)
 
 
 # Mock 데이터 생성 - 다중 회사

@@ -1,12 +1,6 @@
 from fastapi import HTTPException
 from src.database import get_db_connection
-from typing import List, Dict
-
-def get_symbol_list(page: int, page_size: int = 20) -> List[str]:
-    stocks = get_symbols_for_page(page, page_size)
-    # 심볼만 리스트로 변환하여 반환
-    symbol_list = [stock["symbol"] for stock in stocks]
-    return symbol_list
+from typing import List
 
 # 특정 심볼로 회사 정보 조회
 def get_company_by_symbol(symbol: str):
@@ -23,22 +17,39 @@ def get_company_by_symbol(symbol: str):
 
     return company
 
-def get_symbols_for_page(page: int, page_size: int = 20) -> List[Dict[str, str]]:
+
+def get_symbols_for_page(page: int, page_size: int = 20) -> List[str]:
     start_index = (page - 1) * page_size
     database = get_db_connection()
     cursor = database.cursor()
 
     query = """
-        SELECT id, name, symbol
+        SELECT symbol
         FROM company
         WHERE is_deleted = 0
         ORDER BY id
         LIMIT %s OFFSET %s
     """
     cursor.execute(query, (page_size, start_index))
-    symbols = [{"id": row[0], "name": row[1], "symbol": row[2]} for row in cursor.fetchall()]
+    # 심볼만 리스트로 반환
+    symbols = [row[0] for row in cursor.fetchall()]
 
     cursor.close()
     database.close()
 
     return symbols
+
+
+def get_company_details(symbol: str):
+    database = get_db_connection()
+    cursor = database.cursor(dictionary=True)
+
+    cursor.execute("SELECT id, name FROM company WHERE symbol = %s AND is_deleted = 0", (symbol,))
+    company = cursor.fetchone()
+    cursor.close()
+    database.close()
+
+    if not company:
+        return {"id": None, "name": ""}
+
+    return company
