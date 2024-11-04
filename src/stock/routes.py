@@ -1,9 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from .crud import get_company_by_symbol
 from .schemas import CompanyResponse
-from .websocket import run_websocket_background_multiple
-from fastapi.responses import StreamingResponse
-from .crud import get_symbols_for_page
 
 # FastAPI 설정
 router = APIRouter(

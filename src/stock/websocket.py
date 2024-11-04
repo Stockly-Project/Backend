@@ -10,6 +10,7 @@ from src.logger import logger
 import requests
 import random
 from .crud import get_company_details
+from datetime import datetime
 
 APP_KEY = os.getenv("APP_KEY")
 APP_SECRET = os.getenv("APP_SECRET")
@@ -174,23 +175,25 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
 
 
 
-# SSE 이벤트 생성기
-# async def sse_event_generator(data_queue: asyncio.Queue):
-#     buffer = []  # 한 번에 전송할 데이터를 모으기 위한 버퍼
-#     while True:
-#         data = await data_queue.get()
-#         buffer.append(data)  # 버퍼에 데이터 추가
-#         if len(buffer) >= 20:  # 20개 데이터가 모이면 전송
-#             yield f"data: {json.dumps(buffer)}\n\n"
-#             buffer.clear()  # 전송 후 버퍼 초기화
-#         await asyncio.sleep(0.3)
 
 
-# Mock 데이터 생성 - 다중 회사
-def generate_mock_multiple_stock_data(stock_info):
-    stock_data = {
+
+
+# Mock 데이터 생성 함수 - 개별 주식 데이터 생성
+def generate_single_mock_stock_data(stock_info: Dict[str, str]) -> Dict[str, str]:
+    # 주식 정보 조회 및 목업 데이터 생성
+    stock = get_company_details(stock_info["symbol"])  # 데이터베이스에서 회사 정보 조회
+    if stock:
+        id = stock.get("id")
+        name = stock.get("name")
+    else:
+        id, name = None, None  # 기본값으로 설정
+
+    return {
+        "id": id,
+        "name": name,
         "symbol": stock_info["symbol"],
-        "date": "20241031",
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "open": str(random.uniform(50000, 55000)),
         "close": str(random.uniform(50000, 55000)),
         "high": str(random.uniform(55000, 60000)),
@@ -199,86 +202,26 @@ def generate_mock_multiple_stock_data(stock_info):
         "rate": str(random.uniform(-2, 2)),
         "volume": str(random.randint(1000, 5000)),
     }
-    return stock_data
 
-# Mock 데이터 전송 - 다중 회사
-def mock_websocket_multiple_companies(stock_symbols):
-    while True:
-        for stock_info in stock_symbols:
-            stock_data = generate_mock_multiple_stock_data(stock_info)
-            send_to_kafka(producer, TOPIC_STOCK_DATA, stock_data)
-            logger.debug(f"Sent mock data to Kafka for company: {stock_data}")
-        time.sleep(1)  # 1초 대기 후 다음 데이터 생성
-
-# WebSocket 백그라운드 실행 - 다중 회사 (Mock)
-def run_mock_websocket_background_multiple(stock_symbols):
-    ws_thread = threading.Thread(target=mock_websocket_multiple_companies, args=(stock_symbols,))
-    ws_thread.start()
-    return ws_thread
-
-
-# Mock 데이터 생성 - 다중 회사
-def generate_mock_multiple_stock_data(stock_info):
-    stock_data = {
-        "symbol": stock_info["symbol"],
-        "date": "20241031",
-        "open": str(random.uniform(50000, 55000)),
-        "close": str(random.uniform(50000, 55000)),
-        "high": str(random.uniform(55000, 60000)),
-        "low": str(random.uniform(50000, 51000)),
-        "rate_price": str(random.uniform(-5, 5)),
-        "rate": str(random.uniform(-2, 2)),
-        "volume": str(random.randint(1000, 5000)),
-    }
-    return stock_data
-
-# Mock 데이터 전송 - 다중 회사
-async def mock_websocket_multiple_companies(stock_symbols, producer):
-    while True:
-        batch_data = []
-        for stock_info in stock_symbols:
-            stock_data = generate_mock_multiple_stock_data(stock_info)
-            batch_data.append(stock_data)
-            send_to_kafka(producer, TOPIC_STOCK_DATA, stock_data)
-            logger.debug(f"Sent mock data to Kafka for company: {stock_data}")
-        await asyncio.sleep(1)  # 1초 대기 후 다음 데이터 생성
-
-
-# WebSocket 백그라운드 실행 - 다중 회사 (Mock)
-async def run_mock_websocket_background_multiple(stock_symbols):
-    await mock_websocket_multiple_companies(stock_symbols, producer)
-
-
-# Mock 데이터 생성 - 다중 회사
-def generate_mock_multiple_stock_data(stock_info: Dict[str, str]):
-    stock_data = {
-        "id": stock_info["id"],
-        "name": stock_info["name"],
-        "symbol": stock_info["symbol"],
-        "close": str(random.uniform(50000, 55000)),
-        "rate_price": str(random.uniform(-5, 5)),
-        "rate": str(random.uniform(-2, 2)),
-        "volume": str(random.randint(1000, 5000)),
-        "volume_price": str(random.uniform(5000000, 10000000)),
-    }
-    return stock_data
-
-# Mock 데이터 전송 - 다중 회사
-async def mock_websocket_multiple_companies(stock_symbols, data_queue):
-    while True:
-        batch_data = []  # 20개 회사 데이터를 모을 리스트
-        for stock_info in stock_symbols:
-            stock_data = generate_mock_multiple_stock_data(stock_info)
-            batch_data.append(stock_data)
-            logger.debug(f"Generated mock data for company {stock_info['symbol']}: {stock_data}")
-
-        await data_queue.put(batch_data)
-        logger.debug(f"Queued batch mock data for multiple companies: {batch_data}")
-        await asyncio.sleep(1)  # 1초 대기
-
-
-# WebSocket 백그라운드 실행 - 다중 회사 (Mock)
-async def run_mock_websocket_background_multiple(stock_symbols):
+# Mock WebSocket 데이터 생성 및 Queue에 전송
+async def run_mock_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
     data_queue = asyncio.Queue()
-    await asyncio.create_task(mock_websocket_multiple_companies(stock_symbols, data_queue))
+
+    async def mock_data_producer():
+        while True:
+            for stock_info in stock_symbols:
+                mock_data = generate_single_mock_stock_data(stock_info)
+                await data_queue.put(json.dumps(mock_data))  # Queue에 JSON 문자열 형태로 데이터 넣기
+                send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(mock_data))  # Kafka로 전송
+            await asyncio.sleep(0.5)
+
+    asyncio.create_task(mock_data_producer())
     return data_queue
+
+# Mock 데이터 SSE 이벤트 생성기
+async def sse_mock_event_generator(stock_symbols: List[Dict[str, str]]):
+    while True:
+        for stock_info in stock_symbols:
+            mock_data = generate_single_mock_stock_data(stock_info)
+            yield f"data: {json.dumps(mock_data)}\n\n"
+        await asyncio.sleep(1)
