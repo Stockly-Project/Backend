@@ -2,6 +2,12 @@ from fastapi import HTTPException
 from src.database import get_db_connection
 from typing import List, Dict
 
+def get_symbol_list(page: int, page_size: int = 20) -> List[str]:
+    stocks = get_symbols_for_page(page, page_size)
+    # 심볼만 리스트로 변환하여 반환
+    symbol_list = [stock["symbol"] for stock in stocks]
+    return symbol_list
+
 # 특정 심볼로 회사 정보 조회
 def get_company_by_symbol(symbol: str):
     database = get_db_connection()

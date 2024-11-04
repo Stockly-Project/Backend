@@ -4,6 +4,7 @@ import redis.asyncio as aioredis
 import os
 from mysql.connector import errors
 from src.logger import logger
+import time
 
 # Redis 클라이언트 생성
 # async def get_redis():
