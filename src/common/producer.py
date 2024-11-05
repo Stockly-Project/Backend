@@ -6,8 +6,8 @@ from src.logger import logger
 def init_kafka_producer():
     try:
         producer = KafkaProducer(
-            # bootstrap_servers=['kafka:9092'],
-            bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
+            bootstrap_servers=['kafka:9092'],
+            # bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
             api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
         )

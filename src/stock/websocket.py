@@ -135,13 +135,18 @@ def handle_message(ws, message, stock_symbols, data_queue):
             if kafka_data:
                 send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(kafka_data))
 
-
 # WebSocket 연결 설정 및 스레드 실행
-def websocket_thread(stock_symbols, data_queue):
+def websocket_thread(stock_symbols, data_queue):  # kafka_enabled 인수를 추가
+    logger.info("Starting WebSocket thread for symbols: %s", stock_symbols)
+
+    def on_open_wrapper(ws):
+        on_open(ws, stock_symbols)
+
+    while True:
         try:
             ws = websocket.WebSocketApp(
                 "ws://ops.koreainvestment.com:31000",
-                on_open=lambda ws: on_open(ws, stock_symbols),
+                on_open=on_open_wrapper,  # 콜백 함수로 전달
                 on_message=lambda ws, message: handle_message(ws, message, stock_symbols, data_queue),
                 on_error=on_error,
                 on_close=on_close
@@ -152,6 +157,7 @@ def websocket_thread(stock_symbols, data_queue):
             logger.error(f"WebSocket error occurred: {e}")
             time.sleep(0.3)
             logger.info("Attempting to reconnect WebSocket...")
+
 
 # WebSocket 백그라운드 실행 함수
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
