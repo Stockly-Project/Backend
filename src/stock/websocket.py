@@ -60,7 +60,7 @@ def build_message(app_key, tr_id, tr_key, tr_type="1"):
 def subscribe(ws, tr_id, app_key, stock_code):
     message = build_message(app_key, tr_id, stock_code)
     ws.send(message)
-    time.sleep(2.0)
+    time.sleep(4.0)
 
 # WebSocket 연결 후 다중 종목 구독 설정
 def on_open(ws, stock_symbols):
