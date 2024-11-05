@@ -39,12 +39,13 @@ async def schedule_websockets():
 # lifespan 핸들러 설정
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await schedule_websockets()
+    logger.info("WebSocket scheduling task executed at app startup.")
+
+    # 필요 시 스케줄러를 추가로 사용할 경우
     scheduler = AsyncIOScheduler()
-
-    # 매일 오전 9시에 WebSocket 스케줄링 또는 테스트용 매 분 스케줄링
-    scheduler.add_job(schedule_websockets, CronTrigger(hour=10, minute=0))
+    # scheduler.add_job(schedule_websockets, CronTrigger(hour=10, minute=0))  # 매일 오전 10시 실행
     # scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
-
     scheduler.start()
 
     try:
