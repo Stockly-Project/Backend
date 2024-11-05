@@ -9,9 +9,6 @@ from src.logger import logger
 import requests
 from .crud import get_company_details
 
-
-TOPIC_STOCK_DATA = "real_time_stock_prices"
-
 def get_approval():
     url = 'https://openapivts.koreainvestment.com:29443/'
     headers = {"content-type": "application/json"}
