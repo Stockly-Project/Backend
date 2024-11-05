@@ -26,15 +26,15 @@ async def schedule_mock_websockets():
     except Exception as e:
         logger.error(f"Error in mock WebSocket scheduling task: {e}")
 
-# # WebSocket 스케줄링 함수
-# async def schedule_websockets():
-#     symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
-#     try:
-#         # 다중 심볼을 한 번의 WebSocket으로 처리하도록 symbol_list 전체를 전달
-#         await run_websocket_background_multiple(symbol_list)  # Kafka 전송 활성화
-#         logger.debug("WebSocket task completed for multiple stocks.")
-#     except Exception as e:
-#         logger.error(f"Error in WebSocket scheduling task: {e}")
+# WebSocket 스케줄링 함수
+async def schedule_websockets():
+    symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
+    try:
+        # 다중 심볼을 한 번의 WebSocket으로 처리하도록 symbol_list 전체를 전달
+        await run_websocket_background_multiple(symbol_list)  # Kafka 전송 활성화
+        logger.debug("WebSocket task completed for multiple stocks.")
+    except Exception as e:
+        logger.error(f"Error in WebSocket scheduling task: {e}")
 
 # lifespan 핸들러 설정
 @asynccontextmanager
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
 
     # 매일 오전 9시에 WebSocket 스케줄링 또는 테스트용 매 분 스케줄링
     # scheduler.add_job(schedule_websockets, CronTrigger(hour=9, minute=0))
-    scheduler.add_job(schedule_mock_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
+    scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
 
     scheduler.start()
 
