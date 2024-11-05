@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
 
     # 매일 오전 9시에 WebSocket 스케줄링 또는 테스트용 매 분 스케줄링
-    # scheduler.add_job(schedule_websockets, CronTrigger(hour=9, minute=0))
-    scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
+    scheduler.add_job(schedule_websockets, CronTrigger(hour=10, minute=0))
+    # scheduler.add_job(schedule_websockets, CronTrigger(minute="*"))  # 테스트용 매 분 스케줄링
 
     scheduler.start()
 
