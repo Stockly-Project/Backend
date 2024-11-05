@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from .stock.websocket import run_websocket_background_multiple, run_mock_websocket_background_multiple
-from .stock.price_websocket import run_asking_websocket_background_multiple, run_asking_websocket_background_multiple
+from .stock.price_websocket import run_asking_websocket_background_multiple, run_mock_asking_websocket_background_multiple
 from .logger import logger
 from .stock.crud import get_symbols_for_page
 
@@ -16,13 +16,9 @@ async def schedule_mock_websockets():
 
     try:
         # 목업 WebSocket 실행하여 큐에 데이터 전송
-        data_queue = await run_mock_websocket_background_multiple(symbol_list)
+        await run_mock_websocket_background_multiple(symbol_list)
+        await run_mock_asking_websocket_background_multiple(symbol_list)
         logger.debug("Mock WebSocket task completed for multiple stocks.")
-
-        while True:
-            mock_data = await data_queue.get()
-            logger.info(f"Received mock data: {mock_data}")
-            data_queue.task_done()
 
     except Exception as e:
         logger.error(f"Error in mock WebSocket scheduling task: {e}")
@@ -41,13 +37,13 @@ async def schedule_websockets():
 # lifespan 핸들러 설정
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await schedule_websockets()
+    await schedule_mock_websockets()
     logger.info("WebSocket scheduling task executed at app startup.")
 
     # 필요 시 스케줄러를 추가로 사용할 경우
     scheduler = AsyncIOScheduler()
     # scheduler.add_job(schedule_websockets, CronTrigger(hour=10, minute=0))  # 매일 오전 10시 실행
-    scheduler.add_job(schedule_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
+    scheduler.add_job(schedule_mock_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
     scheduler.start()
 
     try:
