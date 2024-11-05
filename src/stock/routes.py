@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from .crud import get_company_by_symbol
 from .schemas import CompanyResponse
-from .websocket import run_websocket_background_to_queue
+from .sse_websocket import run_websocket_background_to_queue
 from .crud import get_symbols_for_page
 from fastapi.responses import StreamingResponse
 import json
