@@ -119,7 +119,7 @@ def handle_message(ws, message, stock_symbols, data_queue):
         try:
             message_data = json.loads(message)
             tr_id = message_data.get("header", {}).get("tr_id")
-            if tr_id in ["H0STASP0", "H0STCNT0"] and message_data.get("body", {}).get("rt_cd") == "1":
+            if tr_id in ["H0STCNT0"] and message_data.get("body", {}).get("rt_cd") == "1":
                 logger.info(f"Subscription confirmation for {tr_id} - {message_data}")
                 return
         except json.JSONDecodeError:
@@ -136,19 +136,12 @@ def handle_message(ws, message, stock_symbols, data_queue):
                 send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(kafka_data))
 
 
-
 # WebSocket 연결 설정 및 스레드 실행
-def websocket_thread(stock_symbols, data_queue):  # kafka_enabled 인수를 추가
-    logger.info("Starting WebSocket thread for symbols: %s", stock_symbols)
-
-    def on_open_wrapper(ws):
-        on_open(ws, stock_symbols)
-
-    while True:
+def websocket_thread(stock_symbols, data_queue):
         try:
             ws = websocket.WebSocketApp(
                 "ws://ops.koreainvestment.com:31000",
-                on_open=on_open_wrapper,
+                on_open=lambda ws: on_open(ws, stock_symbols),
                 on_message=lambda ws, message: handle_message(ws, message, stock_symbols, data_queue),
                 on_error=on_error,
                 on_close=on_close
