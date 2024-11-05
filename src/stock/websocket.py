@@ -19,14 +19,7 @@ TOPIC_STOCK_DATA = "real_time_stock_prices"
 # Kafka Producer 초기화
 producer = init_kafka_producer()
 
-# 캐시된 승인 키
-approval_key_cache = None
-
 def get_approval(app_key, app_secret):
-    global approval_key_cache
-    if approval_key_cache:
-        return approval_key_cache
-
     url = 'https://openapivts.koreainvestment.com:29443/oauth2/Approval'
     headers = {"content-type": "application/json"}
     body = {
@@ -38,7 +31,6 @@ def get_approval(app_key, app_secret):
     response = requests.post(url, headers=headers, data=json.dumps(body))
     if response.status_code == 200 and "approval_key" in response.json():
         approval_key = response.json()["approval_key"]
-        approval_key_cache = approval_key
         return approval_key
     else:
         logger.error(f"Failed to get approval key: {response.text}")
@@ -76,29 +68,14 @@ def on_open(ws, stock_symbols):
         subscribe(ws, "H0STCNT0", approval_key, stock_code)
         logger.debug(f"Subscribed to BID_ASK and CONTRACT for {stock_code}")
 
+# WebSocket 에러 및 종료 핸들러
 def on_error(ws, error):
     logger.error(f'WebSocket error occurred: {error}')
     if isinstance(error, OSError) and error.errno == 32:
         logger.error("Broken pipe error detected. Connection might be closed unexpectedly.")
-    attempt_reconnect(ws)
 
 def on_close(ws, status_code, close_msg):
     logger.info(f'WebSocket closed with status code={status_code}, message={close_msg}')
-    attempt_reconnect(ws)
-
-def attempt_reconnect(ws):
-    retry_delay = 10  # 재연결을 시도하기 전에 대기할 시간 (초)
-    max_retries = 10 # 최대 재시도 횟수
-    for attempt in range(max_retries):
-        logger.info(f"Attempting to reconnect... (Attempt {attempt + 1}/{max_retries})")
-        try:
-            ws.run_forever()  # WebSocket 재연결
-            break  # 성공적으로 재연결되면 반복 종료
-        except Exception as e:
-            logger.error(f"Reconnection attempt failed: {e}")
-            time.sleep(retry_delay)  # 대기 후 재시도
-    else:
-        logger.error("Max reconnection attempts reached. Could not reconnect.")
 
 # Kafka로 전송할 주식 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
