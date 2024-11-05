@@ -47,6 +47,8 @@ def get_approval(app_key, app_secret):
 def build_message(app_key, tr_id, tr_key, tr_type="1"):
     header = {
         "approval_key": app_key,
+        "app_key": APP_KEY,
+        "secret_key": APP_SECRET,
         "custtype": "P",
         "tr_type": tr_type,
         "content-type": "utf-8"
