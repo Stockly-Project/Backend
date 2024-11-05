@@ -76,14 +76,29 @@ def on_open(ws, stock_symbols):
         subscribe(ws, "H0STCNT0", approval_key, stock_code)
         logger.debug(f"Subscribed to BID_ASK and CONTRACT for {stock_code}")
 
-# WebSocket 에러 및 종료 핸들러
 def on_error(ws, error):
     logger.error(f'WebSocket error occurred: {error}')
     if isinstance(error, OSError) and error.errno == 32:
         logger.error("Broken pipe error detected. Connection might be closed unexpectedly.")
+    attempt_reconnect(ws)
 
 def on_close(ws, status_code, close_msg):
     logger.info(f'WebSocket closed with status code={status_code}, message={close_msg}')
+    attempt_reconnect(ws)
+
+def attempt_reconnect(ws):
+    retry_delay = 10  # 재연결을 시도하기 전에 대기할 시간 (초)
+    max_retries = 10 # 최대 재시도 횟수
+    for attempt in range(max_retries):
+        logger.info(f"Attempting to reconnect... (Attempt {attempt + 1}/{max_retries})")
+        try:
+            ws.run_forever()  # WebSocket 재연결
+            break  # 성공적으로 재연결되면 반복 종료
+        except Exception as e:
+            logger.error(f"Reconnection attempt failed: {e}")
+            time.sleep(retry_delay)  # 대기 후 재시도
+    else:
+        logger.error("Max reconnection attempts reached. Could not reconnect.")
 
 # Kafka로 전송할 주식 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
