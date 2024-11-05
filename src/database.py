@@ -46,7 +46,6 @@ def get_db_connection():
                 charset="utf8mb4",
                 use_unicode=True
             )
-            logger.info("Connected to MySQL successfully.")
             return connection
         except errors.InterfaceError as e:
             retries -= 1
