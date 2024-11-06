@@ -63,6 +63,6 @@ async def sse_stream_multiple(page: int = Query(1)):
 
             # 데이터 초기화
             symbol_data_dict.clear()
-            await asyncio.sleep(1)
+            await asyncio.sleep(5)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
