@@ -58,7 +58,6 @@ async def sse_stream_multiple(page: int = Query(1)):
 
             # 수집된 데이터를 전송
             bundled_data = json.dumps(list(symbol_data_dict.values()))
-            await asyncio.sleep(3)
             print(f"Sending bundled data: {bundled_data}")
             yield f"data: {bundled_data}\n\n"
 
