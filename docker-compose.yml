@@ -8,11 +8,6 @@ services:
       - "2181:2181"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
-#      - ZOOKEEPER_CLIENT_PORT=2181
-#      - ZOOKEEPER_TICK_TIME=5000
-#      - ZOOKEEPER_INIT_LIMIT=5
-#      - ZOOKEEPER_SYNC_LIMIT=2
-#      - ZOOKEEPER_SERVER_ID=0
     volumes:
        - zookeeper_data:/bitnami
 
@@ -59,7 +54,7 @@ services:
       - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
       - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://kafka:9094
 #      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://192.168.10.26:9094
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://192.168.10.39:9094
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
@@ -99,7 +94,7 @@ services:
 
 networks:
   app-network:
-    driver: bridge
+    external: true
 
 volumes:
   db_data:

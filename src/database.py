@@ -6,24 +6,6 @@ from mysql.connector import errors
 from src.logger import logger
 import time
 
-# Redis 클라이언트 생성
-# async def get_redis():
-#     redis_url = REDIS_URL
-#     redis = await aioredis.from_url(redis_url)
-#     return redis
-
-#MySQL 데이터베이스에 연결
-# def get_db_connection():
-#     connection = mysql.connector.connect(
-#         host=HOST,
-#         user=USER,
-#         password=PASSWORD,
-#         database=DATABASE,
-#         charset="utf8mb4"
-#     )
-#     return connection
-
-
 async def get_redis():
     redis_url = os.getenv("REDIS_URL")
     redis = await aioredis.from_url(redis_url)

@@ -149,6 +149,7 @@ def process_data_for_sse(data, stock_symbol):
                     "rate_price": result[4],
                     "rate": result[5],
                     "volume": result[12],
+                    "trading_value": float(result[2]) * int(result[12])
                 }
                 return stock_data
             else:
