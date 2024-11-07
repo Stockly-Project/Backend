@@ -104,20 +104,20 @@ def process_data_for_kafka(data, stock_symbol):
             result = recvData.split("^")
             if len(result) > 42:  # 필수 호가 데이터가 포함된 최소 인덱스 확인
 
-                # 매도 호가 및 잔량 (1~7위)
+                # 매도 호가 및 잔량 (3~10위)
                 sell_prices = {
-                    f"sell_price_{i}": result[12 - i] for i in range(7)
+                    f"sell_price_{i + 3}": result[12 - i] for i in range(8)
                 }
                 sell_volumes = {
-                    f"sell_volume_{i}": result[32 - i] for i in range(7)
+                    f"sell_volume_{i + 3}": result[32 - i] for i in range(8)
                 }
 
-                # 매수 호가 및 잔량 (1~7위)
+                # 매수 호가 및 잔량 (1~8위)
                 buy_prices = {
-                    f"buy_price_{i}": result[13 + i] for i in range(7)
+                    f"buy_price_{i + 1}": result[13 + i] for i in range(8)
                 }
                 buy_volumes = {
-                    f"buy_volume_{i}": result[33 + i] for i in range(7)
+                    f"buy_volume_{i + 1}": result[33 + i] for i in range(8)
                 }
 
                 # 필요한 정보 딕셔너리 생성
