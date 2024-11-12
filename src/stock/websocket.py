@@ -102,11 +102,21 @@ def process_data_for_kafka(data, stock_symbol):
             recvData = d1[3]
             result = recvData.split("^")
             if len(result) > 12:
+                # Get the current date
+                current_date = datetime.now().strftime("%Y-%m-%d")
+
+                # Combine current date with the API time and create a datetime object
+                api_time = result[1]  # Assuming this is in "HHMMSS" format like "094434"
+                full_datetime = datetime.strptime(f"{current_date} {api_time}", "%Y-%m-%d %H%M%S")
+
+                # Format datetime as "YYYY-MM-DD HH:MM:SS"
+                formatted_datetime = full_datetime.strftime("%Y-%m-%d %H:%M:%S")
+
                 stock_data = {
                     "id": id,
                     "name": name,
                     "symbol": stock_symbol,
-                    "date": result[1],
+                    "date": formatted_datetime,
                     "open": result[7],
                     "close": result[2],
                     "high": result[8],

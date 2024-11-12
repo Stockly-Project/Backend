@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
 
     # 필요 시 스케줄러를 추가로 사용할 경우
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(schedule_websockets, CronTrigger(hour=10, minute=0))  # 매일 오전 10시 실행
-    # scheduler.add_job(schedule_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
+    # scheduler.add_job(schedule_mock_websockets(), CronTrigger(hour=10, minute=0))  # 매일 오전 10시 실행
+    scheduler.add_job(schedule_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
     scheduler.start()
 
     try:
@@ -69,3 +69,5 @@ app.add_middleware(
 @app.get("/")
 def hello():
     return {"message": "메인페이지입니다"}
+
+
