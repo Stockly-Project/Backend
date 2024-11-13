@@ -124,6 +124,7 @@ def process_data_for_kafka(data, stock_symbol):
                     "rate_price": result[4],
                     "rate": result[5],
                     "volume": result[12],
+                    "trading_value": float(result[2]) * int(result[12])
                 }
                 return stock_data
             else:
@@ -210,6 +211,7 @@ def generate_single_mock_stock_data(stock_info: Dict[str, str]) -> Dict[str, str
         "rate_price": str(random.uniform(-5, 5)),
         "rate": str(random.uniform(-2, 2)),
         "volume": str(random.randint(1000, 5000)),
+        "trading_value": str(random.uniform(50, 51))
     }
 
 # Mock WebSocket 데이터 생성 및 Queue에 전송

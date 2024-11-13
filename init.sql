@@ -14,7 +14,8 @@ date DATETIME,
 open INT,
 close INT,
 rate DOUBLE,
-rate_price INT
+rate_price INT,
+trading_value BIGINT
 );
 
 ALTER TABLE stock

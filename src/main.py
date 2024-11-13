@@ -8,8 +8,14 @@ from apscheduler.triggers.cron import CronTrigger
 from .stock.websocket import run_websocket_background_multiple, run_mock_websocket_background_multiple
 from .stock.price_websocket import run_asking_websocket_background_multiple, run_mock_asking_websocket_background_multiple
 from .logger import logger
+from .common.admin_kafka_client import create_kafka_topic
 from .stock.crud import get_symbols_for_page
 
+# Kafka 토픽 초기화 함수
+async def initialize_kafka():
+    # Kafka 토픽을 초기화하는 함수 호출 (토픽이 없다면 생성)
+    create_kafka_topic("real_time_stock_prices", num_partitions=8)
+    logger.info("Kafka topic initialized.")
 
 async def schedule_mock_websockets():
     symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
@@ -37,13 +43,16 @@ async def schedule_websockets():
 # lifespan 핸들러 설정
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await schedule_websockets()
+    # Kafka 토픽 초기화가 완료될 때까지 대기
+    # await initialize_kafka()
+
+    await schedule_mock_websockets()
     logger.info("WebSocket scheduling task executed at app startup.")
 
     # 필요 시 스케줄러를 추가로 사용할 경우
     scheduler = AsyncIOScheduler()
     # scheduler.add_job(schedule_mock_websockets(), CronTrigger(hour=10, minute=0))  # 매일 오전 10시 실행
-    scheduler.add_job(schedule_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
+    scheduler.add_job(schedule_mock_websockets, CronTrigger(minute="*/10"))  # 테스트용 매 분 스케줄링
     scheduler.start()
 
     try:
