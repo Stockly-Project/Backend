@@ -323,7 +323,7 @@ async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: 
         await data_queue.put(kafka_data)  # 데이터를 비동기 큐에 추가
 
 # WebSocket 이벤트 설정
-def on_open(ws, stock_symbols, data_queue):
+def on_open(ws, stock_symbols, data_queue, loop):
     approval_key = get_approval()
     if not approval_key:
         logger.error("Approval key not obtained, terminating connection.")
@@ -335,6 +335,7 @@ def on_open(ws, stock_symbols, data_queue):
         stock_code = stock["symbol"]
         subscribe(ws, approval_key, stock_code)
 
+# WebSocket 에러 및 종료 핸들러
 def on_error(ws, error):
     logger.error(f'WebSocket error occurred: {error}')
 
@@ -342,21 +343,11 @@ def on_close(ws, status_code, close_msg):
     logger.info(f'WebSocket closed with status code={status_code}, message={close_msg}')
 
 # WebSocket 메시지를 큐에 추가하는 함수
-async def on_message(ws, message, stock_symbols, data_queue):
-    if message.startswith("{"):
-        # 구독 성공 확인 메시지 무시
-        try:
-            message_data = json.loads(message)
-            tr_id = message_data.get("header", {}).get("tr_id")
-            if tr_id == "H0STCNT0":
-                logger.info(f"Subscription confirmed for {tr_id}")
-        except json.JSONDecodeError:
-            logger.error(f"JSON parse error: {message[:100]}")
-    else:
-        d1 = message.split("|")
-        if len(d1) >= 3:
-            stock_symbol = d1[3].split("^")[0]
-            await handle_message(data_queue, message, stock_symbol)
+def on_message(ws, message, stock_symbols, data_queue, loop):
+    d1 = message.split("|")
+    if len(d1) >= 3:
+        stock_symbol = d1[3].split("^")[0]
+        asyncio.run_coroutine_threadsafe(handle_message(data_queue, message, stock_symbol), loop)
 
 # Kafka에 데이터를 비동기로 전송하는 함수
 async def kafka_producer_task(data_queue: asyncio.Queue):
@@ -371,16 +362,19 @@ async def kafka_producer_task(data_queue: asyncio.Queue):
             data_queue.task_done()
 
 # WebSocket 연결 설정 및 스레드 실행
-async def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
-    async def on_open_wrapper(ws):
-        on_open(ws, stock_symbols, data_queue)
+def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue, loop):
+    def on_open_wrapper(ws):
+        on_open(ws, stock_symbols, data_queue, loop)
+
+    def on_message_wrapper(ws, message):
+        on_message(ws, message, stock_symbols, data_queue, loop)
 
     while True:
         try:
             ws = websocket.WebSocketApp(
                 "ws://ops.koreainvestment.com:31000",
                 on_open=on_open_wrapper,
-                on_message=lambda ws, message: asyncio.run_coroutine_threadsafe(on_message(ws, message, stock_symbols, data_queue), asyncio.get_event_loop()),
+                on_message=on_message_wrapper,
                 on_error=on_error,
                 on_close=on_close
             )
@@ -394,11 +388,14 @@ async def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyn
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
     data_queue = asyncio.Queue()
     
-    # WebSocket 연결 스레드 시작
-    ws_thread = threading.Thread(target=lambda: asyncio.run(websocket_thread(stock_symbols, data_queue)))
-    ws_thread.start()
-    
     # Kafka 전송 작업 비동기 시작
     asyncio.create_task(kafka_producer_task(data_queue))
+    
+    # 이벤트 루프 가져오기
+    loop = asyncio.get_running_loop()
+    
+    # WebSocket 연결 스레드 시작
+    ws_thread = threading.Thread(target=websocket_thread, args=(stock_symbols, data_queue, loop))
+    ws_thread.start()
     
     return data_queue
