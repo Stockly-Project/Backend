@@ -185,53 +185,53 @@ import random
 
 
 
-# # Mock 데이터 생성 함수 - 개별 주식 데이터 생성
-# def generate_single_mock_stock_data(stock_info: Dict[str, str]) -> Dict[str, str]:
-#     # 주식 정보 조회 및 목업 데이터 생성
-#     stock = get_company_details(stock_info["symbol"])  # 데이터베이스에서 회사 정보 조회
-#     if stock:
-#         id = stock.get("id")
-#         name = stock.get("name")
-#     else:
-#         id, name = None, None  # 기본값으로 설정
+# Mock 데이터 생성 함수 - 개별 주식 데이터 생성
+def generate_single_mock_stock_data(stock_info: Dict[str, str]) -> Dict[str, str]:
+    # 주식 정보 조회 및 목업 데이터 생성
+    stock = get_company_details(stock_info["symbol"])  # 데이터베이스에서 회사 정보 조회
+    if stock:
+        id = stock.get("id")
+        name = stock.get("name")
+    else:
+        id, name = None, None  # 기본값으로 설정
 
-#     return {
-#         "id": id,
-#         "name": name,
-#         "symbol": stock_info["symbol"],
-#         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-#         "open": str(random.uniform(50000, 55000)),
-#         "close": str(random.uniform(50000, 55000)),
-#         "high": str(random.uniform(55000, 60000)),
-#         "low": str(random.uniform(50000, 51000)),
-#         "rate_price": str(random.uniform(-5, 5)),
-#         "rate": str(random.uniform(-2, 2)),
-#         "volume": str(random.randint(1000, 5000)),
-#         "trading_value": str(random.uniform(50, 51))
-#     }
+    return {
+        "id": id,
+        "name": name,
+        "symbol": stock_info["symbol"],
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "open": str(random.uniform(50000, 55000)),
+        "close": str(random.uniform(50000, 55000)),
+        "high": str(random.uniform(55000, 60000)),
+        "low": str(random.uniform(50000, 51000)),
+        "rate_price": str(random.uniform(-5, 5)),
+        "rate": str(random.uniform(-2, 2)),
+        "volume": str(random.randint(1000, 5000)),
+        "trading_value": str(random.uniform(50, 51))
+    }
 
-# # Mock WebSocket 데이터 생성 및 Queue에 전송
-# async def run_mock_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
-#     data_queue = asyncio.Queue()
+# Mock WebSocket 데이터 생성 및 Queue에 전송
+async def run_mock_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
+    data_queue = asyncio.Queue()
 
-#     async def mock_data_producer():
-#         while True:
-#             for stock_info in stock_symbols:
-#                 mock_data = generate_single_mock_stock_data(stock_info)
-#                 await data_queue.put(json.dumps(mock_data))  # Queue에 JSON 문자열 형태로 데이터 넣기
-#                 send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(mock_data))  # Kafka로 전송
-#             await asyncio.sleep(0.5)
+    async def mock_data_producer():
+        while True:
+            for stock_info in stock_symbols:
+                mock_data = generate_single_mock_stock_data(stock_info)
+                await data_queue.put(json.dumps(mock_data))  # Queue에 JSON 문자열 형태로 데이터 넣기
+                send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(mock_data))  # Kafka로 전송
+            await asyncio.sleep(0.5)
 
-#     asyncio.create_task(mock_data_producer())
-#     return data_queue
+    asyncio.create_task(mock_data_producer())
+    return data_queue
 
-# # Mock 데이터 SSE 이벤트 생성기
-# async def sse_mock_event_generator(stock_symbols: List[Dict[str, str]]):
-#     while True:
-#         for stock_info in stock_symbols:
-#             mock_data = generate_single_mock_stock_data(stock_info)
-#             yield f"data: {json.dumps(mock_data)}\n\n"
-#         await asyncio.sleep(1)
+# Mock 데이터 SSE 이벤트 생성기
+async def sse_mock_event_generator(stock_symbols: List[Dict[str, str]]):
+    while True:
+        for stock_info in stock_symbols:
+            mock_data = generate_single_mock_stock_data(stock_info)
+            yield f"data: {json.dumps(mock_data)}\n\n"
+        await asyncio.sleep(1)
 
 
 TOPIC_STOCK_DATA = "real_time_stock_prices"
