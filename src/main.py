@@ -44,7 +44,7 @@ async def schedule_websockets():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Kafka 토픽 초기화가 완료될 때까지 대기
-    # await initialize_kafka()
+    await initialize_kafka()
 
     await schedule_websockets()
     logger.info("WebSocket scheduling task executed at app startup.")
