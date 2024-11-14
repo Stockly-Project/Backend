@@ -381,7 +381,7 @@ def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Qu
                 on_error=on_error,
                 on_close=on_close
             )
-            ws.run_forever(ping_interval=10)  # ping_interval을 10초로 줄여 설정
+            ws.run_forever(ping_interval=60)  
             retry_count = 0  # 성공 시 재연결 횟수 초기화
         except Exception as e:
             logger.error(f"WebSocket error occurred: {e}")
