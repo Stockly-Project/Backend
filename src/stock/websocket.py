@@ -369,7 +369,10 @@ def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Qu
     def on_message_wrapper(ws, message):
         on_message(ws, message, stock_symbols, data_queue, loop)
 
-    while True:
+    retry_count = 0
+    max_retries = 5  # 최대 재연결 시도 횟수
+
+    while retry_count < max_retries:
         try:
             ws = websocket.WebSocketApp(
                 "ws://ops.koreainvestment.com:31000",
@@ -378,11 +381,14 @@ def websocket_thread(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Qu
                 on_error=on_error,
                 on_close=on_close
             )
-            ws.run_forever(ping_interval=30)
+            ws.run_forever(ping_interval=10)  # ping_interval을 10초로 줄여 설정
+            retry_count = 0  # 성공 시 재연결 횟수 초기화
         except Exception as e:
             logger.error(f"WebSocket error occurred: {e}")
-            time.sleep(0.3)
-            logger.info("Reconnecting WebSocket...")
+            retry_count += 1
+            logger.info(f"Reconnecting WebSocket... (attempt {retry_count}/{max_retries})")
+            time.sleep(5)  # 재연결 시도 간격을 5초로 늘림
+
 
 # WebSocket 백그라운드 실행 함수
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
