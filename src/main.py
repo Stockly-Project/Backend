@@ -35,7 +35,7 @@ async def schedule_websockets():
     try:
         # 다중 심볼을 한 번의 WebSocket으로 처리하도록 symbol_list 전체를 전달
         await run_websocket_background_multiple(symbol_list)  # Kafka 전송 활성화
-        await run_asking_websocket_background_multiple(symbol_list)
+        # await run_asking_websocket_background_multiple(symbol_list)
         logger.debug("WebSocket task completed for multiple stocks.")
     except Exception as e:
         logger.error(f"Error in WebSocket scheduling task: {e}")
