@@ -219,7 +219,7 @@ async def run_mock_websocket_background_multiple(stock_symbols: List[Dict[str, s
             for stock_info in stock_symbols:
                 mock_data = generate_single_mock_stock_data(stock_info)
                 await data_queue.put(json.dumps(mock_data))  # Queue에 JSON 문자열 형태로 데이터 넣기
-                send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(mock_data))  # Kafka로 전송
+                await send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(mock_data))  # Kafka로 전송
             await asyncio.sleep(0.5)
 
     asyncio.create_task(mock_data_producer())
