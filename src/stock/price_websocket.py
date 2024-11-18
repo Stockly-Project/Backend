@@ -112,6 +112,7 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_t
             if isinstance(data, dict):
                 await producer.send_and_wait(topic, value=data)
                 logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
+                logger.debug(f"Data: {data}")
             else:
                 raise TypeError(f"Unexpected data format: {type(data)}")
         except Exception as e:
