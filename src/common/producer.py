@@ -10,7 +10,8 @@ async def init_kafka_producer():
     try:
         # bootstrap_servers에 올바른 데이터 타입 전달
         producer = AIOKafkaProducer(
-            bootstrap_servers='kafka-broker.stockly.svc.cluster.local:9092',  # 문자열로 변경
+            # bootstrap_servers=['kafka:9092'],
+            bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
             api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
         )
