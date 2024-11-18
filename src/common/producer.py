@@ -17,7 +17,6 @@ async def init_kafka_producer():
         # Kafka Producer 초기화
         producer = AIOKafkaProducer(
             bootstrap_servers=bootstrap_servers,
-            api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
         )
         await producer.start()
