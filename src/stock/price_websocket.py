@@ -76,18 +76,24 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
 
 
 # Kafka에 데이터를 비동기로 전송하는 함수
-async def kafka_producer_task(data_queue: asyncio.Queue, producer):
+async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="default_topic"):
     while True:
         data = await data_queue.get()
         if data is None:  # 종료 신호
             break
 
-            # 데이터가 딕셔너리인 경우 JSON으로 직렬화
-        if isinstance(data, dict):
-            data = json.dumps(data).encode('utf-8')
         try:
-            await send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(data))
-            logger.info(f"Sent data to Kafka for symbol: {data['symbol']}")
+            # 데이터가 이미 직렬화된 상태인지 확인
+            if isinstance(data, str):  # 이미 JSON 문자열인 경우
+                serialized_data = data.encode('utf-8')
+            elif isinstance(data, dict):  # 딕셔너리인 경우 직렬화
+                serialized_data = json.dumps(data).encode('utf-8')
+            else:
+                raise TypeError(f"Unexpected data format: {type(data)}")
+
+            # Kafka로 데이터 전송
+            await producer.send_and_wait(topic, value=serialized_data)
+            logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
         finally:
