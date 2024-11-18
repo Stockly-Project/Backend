@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS stock (
     close INT,
     rate DOUBLE,
     rate_price INT,
-    trading_value DECIMAL(20, 2)
+    trading_value DECIMAL(20, 2),
+    is_daily BOOLEAN DEFAULT TRUE
 );
 
 ALTER TABLE stock
