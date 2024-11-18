@@ -1,6 +1,7 @@
 import json
 import os
-import websocket
+import websockets
+import aiohttp
 import threading
 import time
 import asyncio
@@ -13,69 +14,79 @@ import random
 
 TOPIC_STOCK_DATA = "real_time_asking_prices"
 
-# Kafka Producer 초기화
-producer = init_kafka_producer()
 
-def get_approval():
-    url = 'https://openapivts.koreainvestment.com:29443/'
+# 승인 키 가져오는 함수
+async def get_approval():
+    url = 'https://openapivts.koreainvestment.com:29443/oauth2/Approval'
     headers = {"content-type": "application/json"}
-    body = {"grant_type": "client_credentials",
-            "appkey": os.getenv("HOGA_KEY"),
-            "secretkey": os.getenv("HOGA_SECRET")}
-    PATH = "oauth2/Approval"
-    URL = f"{url}/{PATH}"
-    res = requests.post(URL, headers=headers, data=json.dumps(body))
-    approval_key = res.json()["approval_key"]
-    return approval_key
-
-def build_message(app_key, tr_key):
-    header = {
-        "approval_key": app_key,
-        "custtype": "P",
-        "tr_type": "1",
-        "content-type": "utf-8",
-    }
     body = {
-        "input": {
-            "tr_id": "H0STASP0",
-            "tr_key": tr_key
-        }
+        "grant_type": "client_credentials",
+        "appkey": os.getenv("APP_KEY"),
+        "secretkey": os.getenv("APP_SECRET")
     }
-    return json.dumps({"header": header, "body": body})
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=body) as res:
+            data = await res.json()
+            return data.get("approval_key")
 
-# 구독 함수
-def subscribe(ws, app_key, stock_code):
-    message = build_message(app_key, stock_code)
-    if ws.sock and ws.sock.connected:
-        ws.send(message)
-        logger.info(f"Subscribed to H0STCNT0 for stock: {stock_code}")
-    else:
-        logger.error("WebSocket not connected, cannot subscribe.")
-    time.sleep(0.1)
+# WebSocket 구독 메시지 생성 함수
+async def subscribe(websocket, app_key, stock_code):
+    message = json.dumps({
+        "header": {
+            "approval_key": app_key,
+            "custtype": "P",
+            "tr_type": "1",
+            "content-type": "utf-8",
+        },
+        "body": {
+            "input": {
+                "tr_id": "H0STASP0",
+                "tr_key": stock_code
+            }
+        }
+    })
+    await websocket.send(message)
+    logger.info(f"Subscribed to H0STCNT0 for stock: {stock_code}")
 
-# WebSocket 연결 후 다중 종목 구독 설정
-def on_open(ws, stock_symbols):
-    approval_key = get_approval()
+# WebSocket 메시지 처리 함수 (비동기 작업으로 메시지를 큐에 추가)
+async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
+    kafka_data = process_data_for_kafka(message, stock_symbol)
+    if kafka_data:
+        await data_queue.put(kafka_data)
+
+# WebSocket 핸들러 함수
+async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
+    approval_key = await get_approval()
     if not approval_key:
         logger.error("Approval key not obtained, terminating connection.")
-        ws.close()
         return
 
-    time.sleep(3)
+    url = "ws://ops.koreainvestment.com:31000"
+    async with websockets.connect(url, ping_interval=60) as websocket:
+        # 각 종목에 대해 구독
+        for stock in stock_symbols:
+            await subscribe(websocket, approval_key, stock["symbol"])
 
-    for stock in stock_symbols:
-        stock_code = stock["symbol"]
+        # 메시지 수신 및 처리
+        async for message in websocket:
+            d1 = message.split("|")
+            if len(d1) >= 3:
+                stock_symbol = d1[3].split("^")[0]
+                await handle_message(data_queue, message, stock_symbol)
+
+
+# Kafka에 데이터를 비동기로 전송하는 함수
+async def kafka_producer_task(data_queue: asyncio.Queue, producer):
+    while True:
+        data = await data_queue.get()
         try:
-            if ws.sock and ws.sock.connected:
-                subscribe(ws, approval_key, stock_code)
-                logger.debug(f"Subscribed to BID_ASK and CONTRACT for {stock_code}")
-            else:
-                logger.error(f"WebSocket not fully connected for {stock_code}, skipping subscription.")
-                break
+            await send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(data))
+            logger.info(f"Sent data to Kafka for symbol: {data['symbol']}")
         except Exception as e:
-            logger.error(f"Subscription failed for {stock_code}: {e}")
-            ws.close()
-            return
+            logger.error(f"Failed to send data to Kafka: {e}")
+        finally:
+            data_queue.task_done()
+
 
 # WebSocket 에러 및 종료 핸들러
 def on_error(ws, error):
@@ -85,7 +96,6 @@ def on_error(ws, error):
 
 def on_close(ws, status_code, close_msg):
     logger.info(f'WebSocket closed with status code={status_code}, message={close_msg}')
-
 
 def process_data_for_kafka(data, stock_symbol):
     stock_info = get_company_details(stock_symbol)
@@ -137,59 +147,26 @@ def process_data_for_kafka(data, stock_symbol):
         logger.error(f"Error processing stock data for Kafka: {e}")
     return None
 
-
-def handle_message(ws, message, stock_symbols, data_queue):
-    if message.startswith("{"):
-        try:
-            message_data = json.loads(message)
-            tr_id = message_data.get("header", {}).get("tr_id")
-            if tr_id == "H0STASP0" and message_data.get("body", {}).get("rt_cd") == "1":
-                logger.info(f"Subscription confirmation for {tr_id} - {message_data}")
-                return
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse message as JSON: {message[:100]}")
-    else:
-        d1 = message.split("|")
-        if len(d1) >= 3:
-            tr_id, stock_symbol = d1[1], d1[3].split("^")[0]
-            logger.debug(f"Processing data for tr_id: {tr_id}, stock_symbol: {stock_symbol}")
-
-            kafka_data = process_data_for_kafka(message, stock_symbol)
-            if kafka_data:
-                send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(kafka_data))
-
-# WebSocket 연결 설정 및 스레드 실행
-def websocket_thread(stock_symbols, data_queue):
-    logger.info("Starting WebSocket thread for symbols: %s", stock_symbols)
-
-    def on_open_wrapper(ws):
-        on_open(ws, stock_symbols)
-
-    while True:
-        try:
-            ws = websocket.WebSocketApp(
-                "ws://ops.koreainvestment.com:31000",
-                on_open=on_open_wrapper,
-                on_message=lambda ws, message: handle_message(ws, message, stock_symbols, data_queue),
-                on_error=on_error,
-                on_close=on_close
-            )
-            ws.run_forever(ping_interval=30)
-            logger.info("WebSocket thread has been terminated.")
-        except Exception as e:
-            logger.error(f"WebSocket error occurred: {e}")
-            if isinstance(e, OSError) and e.errno == 32:
-                logger.info("Re-obtaining approval key and attempting to reconnect...")
-                _connect_key = get_approval()
-            time.sleep(0.3)
-            logger.info("Attempting to reconnect WebSocket...")
-
-# WebSocket 백그라운드 실행 함수
+# WebSocket 연결을 비동기적으로 실행
 async def run_asking_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
     data_queue = asyncio.Queue()
-    ws_thread = threading.Thread(target=websocket_thread, args=(stock_symbols, data_queue))
-    ws_thread.start()
+    
+    # Kafka Producer 비동기 초기화
+    producer = await init_kafka_producer()
+    if producer is None:
+        logger.error("Kafka producer initialization failed. Exiting.")
+        return data_queue
+
+    # Kafka 전송 작업 비동기 시작
+    asyncio.create_task(kafka_producer_task(data_queue, producer))
+    
+    # WebSocket 연결 핸들러 비동기 시작
+    await websocket_handler(stock_symbols, data_queue)
+
     return data_queue
+
+
+
 
 
 # 개별 주식 데이터 생성 함수
