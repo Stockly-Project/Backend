@@ -48,6 +48,11 @@ async def subscribe(websocket, app_key, stock_code):
 # Kafka로 전송할 주식 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
     stock_info = get_company_details(stock_symbol)
+    # 반환 데이터 검증
+    if not isinstance(stock_info, dict) or "id" not in stock_info or "name" not in stock_info:
+        logger.error(f"Invalid company details for symbol: {stock_symbol}")
+        return None
+    
     id = stock_info.get("id")
     name = stock_info.get("name")
     if not stock_info or "id" not in stock_info or "name" not in stock_info:
@@ -80,6 +85,8 @@ def process_data_for_kafka(data, stock_symbol):
                     "trading_value": float(result[2]) * int(result[12]),
                     "timestamp": full_datetime.timestamp(),  # 타임스탬프 추가
                 }
+                if not isinstance(stock_data, dict):
+                    raise ValueError("Processed data is not a dictionary")
                 return stock_data
             else:
                 logger.error(f"Unexpected result format for data: {result}")
@@ -91,7 +98,12 @@ def process_data_for_kafka(data, stock_symbol):
 async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
     kafka_data = process_data_for_kafka(message, stock_symbol)
     if kafka_data:
-        await data_queue.put(kafka_data)
+        # 데이터 형식을 로깅하여 확인
+        logger.debug(f"Data added to queue: {type(kafka_data)}, content: {kafka_data}")
+        if isinstance(kafka_data, dict):  # JSON 직렬화 가능한 형식인지 확인
+            await data_queue.put(kafka_data)
+        else:
+            logger.error(f"Invalid data format added to queue: {type(kafka_data)}")
 
 # WebSocket 핸들러 함수
 async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
@@ -136,6 +148,9 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="defaul
             logger.error(f"Failed to send data to Kafka: {e}")
         finally:
             data_queue.task_done()
+
+
+
 
 # WebSocket 연결을 비동기적으로 실행
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
