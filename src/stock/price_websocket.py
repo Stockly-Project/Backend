@@ -79,6 +79,12 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
 async def kafka_producer_task(data_queue: asyncio.Queue, producer):
     while True:
         data = await data_queue.get()
+        if data is None:  # 종료 신호
+            break
+
+            # 데이터가 딕셔너리인 경우 JSON으로 직렬화
+        if isinstance(data, dict):
+            data = json.dumps(data).encode('utf-8')
         try:
             await send_to_kafka(producer, TOPIC_STOCK_DATA, json.dumps(data))
             logger.info(f"Sent data to Kafka for symbol: {data['symbol']}")
