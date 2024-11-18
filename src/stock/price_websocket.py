@@ -17,8 +17,8 @@ async def get_approval():
     headers = {"content-type": "application/json"}
     body = {
         "grant_type": "client_credentials",
-        "appkey": os.getenv("APP_KEY"),
-        "secretkey": os.getenv("APP_SECRET")
+        "appkey": os.getenv("HOGA_KEY"),
+        "secretkey": os.getenv("HOGA_SECRET")
     }
     try:
         async with aiohttp.ClientSession() as session:
