@@ -5,17 +5,21 @@ from src.logger import logger
 
 TOPIC_STOCK_DATA = "real_time_stock_prices"
 
-# Kafka Producer 초기화
 async def init_kafka_producer():
     try:
-        # bootstrap_servers에 올바른 데이터 타입 전달
+        # bootstrap_servers 데이터 타입 검증
+        bootstrap_servers = ['kafka-broker.stockly.svc.cluster.local:9092']
+        if isinstance(bootstrap_servers, tuple):
+            bootstrap_servers = list(bootstrap_servers)
+        elif isinstance(bootstrap_servers, str):
+            bootstrap_servers = [bootstrap_servers]
+
+        # Kafka Producer 초기화
         producer = AIOKafkaProducer(
-            # bootstrap_servers=['kafka:9092'],
-            bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
+            bootstrap_servers=bootstrap_servers,
             api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
         )
-        # Producer를 시작 (connection 및 준비 단계)
         await producer.start()
         logger.info("Kafka producer initialized successfully.")
         return producer

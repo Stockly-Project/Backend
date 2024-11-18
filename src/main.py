@@ -62,6 +62,8 @@ async def lifespan(app: FastAPI):
     finally:
         scheduler.shutdown(wait=False)
         logger.info("Scheduler and WebSocket connections are shut down.")
+
+        
 app = FastAPI(lifespan=lifespan)
 # app = FastAPI()
 router = APIRouter(prefix="/api/v1")
