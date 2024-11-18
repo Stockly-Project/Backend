@@ -7,8 +7,8 @@ TOPIC_STOCK_DATA = "real_time_stock_prices"
 
 async def init_kafka_producer():
     try:
-        # bootstrap_servers 데이터 타입 검증
         bootstrap_servers = ['kafka-broker.stockly.svc.cluster.local:9092']
+        # bootstrap_servers = ['kafka:9092']
         if isinstance(bootstrap_servers, tuple):
             bootstrap_servers = list(bootstrap_servers)
         elif isinstance(bootstrap_servers, str):

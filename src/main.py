@@ -10,6 +10,7 @@ from .stock.price_websocket import run_asking_websocket_background_multiple
 from .logger import logger
 from .common.admin_kafka_client import create_kafka_topic
 from .stock.crud import get_symbols_for_page
+import asyncio
 
 # Kafka 토픽 초기화 함수
 async def initialize_kafka():
@@ -30,17 +31,19 @@ async def schedule_mock_websockets():
     except Exception as e:
         logger.error(f"Error in mock WebSocket scheduling task: {e}")
 
-# WebSocket 스케줄링 함수
 async def schedule_websockets():
     symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
     logger.error(symbol_list)
     try:
-        # 다중 심볼을 한 번의 WebSocket으로 처리하도록 symbol_list 전체를 전달
-        await run_websocket_background_multiple(symbol_list)  # Kafka 전송 활성화
-        await run_asking_websocket_background_multiple(symbol_list)
-        logger.debug("WebSocket task completed for multiple stocks.")
+        logger.debug("Starting WebSocket tasks...")
+        await asyncio.gather(
+            run_websocket_background_multiple(symbol_list),
+            run_asking_websocket_background_multiple(symbol_list),
+        )
+        logger.debug("Both WebSocket tasks completed successfully.")
     except Exception as e:
         logger.error(f"Error in WebSocket scheduling task: {e}")
+
 
 # lifespan 핸들러 설정
 @asynccontextmanager

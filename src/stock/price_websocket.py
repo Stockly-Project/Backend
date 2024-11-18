@@ -120,7 +120,6 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_t
         finally:
             data_queue.task_done()
 
-
 # Kafka 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
     stock_info = get_company_details(stock_symbol)
