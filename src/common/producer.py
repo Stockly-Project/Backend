@@ -28,12 +28,16 @@ async def send_to_kafka(producer, topic, data):
         logger.error("Kafka producer is not initialized.")
         return
     try:
+        # 데이터가 dict 형식인지 확인 후 JSON 직렬화
+        if isinstance(data, dict):
+            data = json.dumps(data).encode('utf-8')
+
         # 비동기적으로 메시지 전송
         await producer.send_and_wait(topic, value=data)
         logger.info(f"Sent to Kafka topic {topic}: {data}")
     except Exception as e:
         logger.error(f"Error sending to Kafka: {e}")
-
+        
 # Producer를 닫는 함수
 async def close_kafka_producer(producer):
     if producer:
