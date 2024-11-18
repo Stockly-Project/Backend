@@ -8,9 +8,9 @@ TOPIC_STOCK_DATA = "real_time_stock_prices"
 # Kafka Producer 초기화
 async def init_kafka_producer():
     try:
+        # bootstrap_servers에 올바른 데이터 타입 전달
         producer = AIOKafkaProducer(
-            # bootstrap_servers=['kafka:9092'],
-            bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
+            bootstrap_servers='kafka-broker.stockly.svc.cluster.local:9092',  # 문자열로 변경
             api_version=(2, 8, 0),
             value_serializer=lambda v: json.dumps(v).encode('utf-8')  # JSON 직렬화
         )
@@ -21,6 +21,7 @@ async def init_kafka_producer():
     except Exception as e:
         logger.error(f"Error initializing Kafka producer: {e}")
         return None
+
 
 # Kafka로 데이터 전송
 async def send_to_kafka(producer, topic, data):
