@@ -131,24 +131,19 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
         logger.info("Closing WebSocket connection.")
 
 
-# Kafka Producer 작업
 async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_stock_prices"):
     while True:
         data = await data_queue.get()
-        if data is None:
+        if data is None:  # 종료 신호
             break
+
         try:
+            # 데이터를 producer.send_and_wait에 직접 전달 (직렬화는 value_serializer에서 처리)
             if isinstance(data, dict):
-                serialized_data = json.dumps(data).encode('utf-8')
-            elif isinstance(data, str):
-                serialized_data = data.encode('utf-8')
-            elif isinstance(data, bytes):
-                serialized_data = data
+                await producer.send_and_wait(topic, value=data)
+                logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
             else:
                 raise TypeError(f"Unexpected data format: {type(data)}")
-
-            await producer.send_and_wait(topic, value=serialized_data)
-            logger.info(f"Sent data to Kafka: {data}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
         finally:
@@ -168,8 +163,6 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
     await websocket_handler(stock_symbols, data_queue)
 
     return data_queue
-
-
 
 
 # 모의 주식 데이터 생성 함수

@@ -99,23 +99,21 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
         except Exception as e:
             logger.error(f"Error in WebSocket handler: {e}. Retrying in 5 seconds...")
             await asyncio.sleep(5)
-
-
-# Kafka 데이터 전송 작업
-async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_stock_prices"):
+            
+            
+async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_asking_prices"):
     while True:
         data = await data_queue.get()
         if data is None:  # 종료 신호
             break
 
         try:
+            # 데이터를 producer.send_and_wait에 직접 전달 (직렬화는 value_serializer에서 처리)
             if isinstance(data, dict):
-                serialized_data = json.dumps(data).encode('utf-8')
+                await producer.send_and_wait(topic, value=data)
+                logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
             else:
                 raise TypeError(f"Unexpected data format: {type(data)}")
-
-            await producer.send_and_wait(topic, value=serialized_data)
-            logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
         finally:
