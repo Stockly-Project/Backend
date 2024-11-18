@@ -143,6 +143,7 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="defaul
 
             # Kafka로 데이터 전송
             await producer.send_and_wait(topic, value=serialized_data)
+            logger.debug(f"Data to be sent to Kafka: {data}, Type: {type(data)}")
             logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
@@ -169,6 +170,13 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
     await websocket_handler(stock_symbols, data_queue)
 
     return data_queue
+
+
+
+
+
+
+
 
 
 # 모의 주식 데이터 생성 함수
