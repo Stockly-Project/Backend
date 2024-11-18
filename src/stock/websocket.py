@@ -126,7 +126,7 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
                 await handle_message(data_queue, message, stock_symbol)
 
 # Kafka에 데이터를 비동기로 전송하는 함수
-async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="default_topic"):
+async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_stock_prices"):
     while True:
         data = await data_queue.get()
         if data is None:  # 종료 신호
