@@ -141,7 +141,7 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_t
             # 데이터를 producer.send_and_wait에 직접 전달 (직렬화는 value_serializer에서 처리)
             if isinstance(data, dict):
                 await producer.send_and_wait(topic, value=data)
-                logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
+                logger.info(f"Data: {data}")
             else:
                 raise TypeError(f"Unexpected data format: {type(data)}")
         except Exception as e:
