@@ -9,8 +9,8 @@ TOPIC_STOCK_DATA = "real_time_stock_prices"
 
 async def init_kafka_producer():
     try:
-        # bootstrap_servers = ['kafka:9092'],
-        bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092'],
+        # bootstrap_servers = ['kafka:9092']
+        bootstrap_servers=['kafka-broker.stockly.svc.cluster.local:9092']
 
         if isinstance(bootstrap_servers, str):
             bootstrap_servers = [bootstrap_servers]
@@ -25,6 +25,8 @@ async def init_kafka_producer():
         return producer
     except Exception as e:
         logger.error(f"Error initializing Kafka producer: {e}")
+        if producer:  # 실패 시 안전하게 닫기
+            await producer.stop()
         return None
 
 # Producer를 닫는 함수
