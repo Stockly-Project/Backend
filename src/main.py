@@ -5,7 +5,7 @@ from src.stock import routes as stock_routes
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from .stock.websocket import run_websocket_background_multiple, run_mock_websocket_background
+from .stock.websocket import run_websocket_background_multiple
 from .stock.price_websocket import run_asking_websocket_background_multiple
 from .logger import logger
 from .common.admin_kafka_client import create_kafka_topic
@@ -19,17 +19,17 @@ async def initialize_kafka():
     create_kafka_topic("real_time_asking_prices", num_partitions=1)
     logger.info("Kafka topic initialized.")
 
-async def schedule_mock_websockets():
-    symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
-
-    try:
-        # 목업 WebSocket 실행하여 큐에 데이터 전송
-        await run_mock_websocket_background(symbol_list)
-        # await run_mock_asking_websocket_background_multiple(symbol_list)
-        logger.debug("Mock WebSocket task completed for multiple stocks.")
-
-    except Exception as e:
-        logger.error(f"Error in mock WebSocket scheduling task: {e}")
+# async def schedule_mock_websockets():
+#     symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]
+#
+#     try:
+#         # 목업 WebSocket 실행하여 큐에 데이터 전송
+#         await run_mock_websocket_background(symbol_list)
+#         # await run_mock_asking_websocket_background_multiple(symbol_list)
+#         logger.debug("Mock WebSocket task completed for multiple stocks.")
+#
+#     except Exception as e:
+#         logger.error(f"Error in mock WebSocket scheduling task: {e}")
 
 async def schedule_websockets():
     symbol_list = [{"symbol": symbol} for symbol in get_symbols_for_page(1)]

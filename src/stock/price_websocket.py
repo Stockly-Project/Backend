@@ -1,12 +1,12 @@
-import json
 import os
 import websockets
 import aiohttp
 import asyncio
 from typing import Dict, List
-from src.common.producer import send_to_kafka, init_kafka_producer
+from src.common.producer import init_kafka_producer
 from src.logger import logger
 from .crud import get_company_details
+import orjson
 
 TOPIC_STOCK_DATA = "real_time_asking_prices"
 
@@ -41,7 +41,7 @@ async def get_approval():
 
 # WebSocket 구독 메시지 생성 함수
 async def subscribe(websocket, app_key, stock_code):
-    message = json.dumps({
+    message = orjson.dumps({
         "header": {
             "approval_key": app_key,
             "custtype": "P",
@@ -54,71 +54,10 @@ async def subscribe(websocket, app_key, stock_code):
                 "tr_key": stock_code
             }
         }
-    })
+    }).decode("utf-8")
     await websocket.send(message)
     logger.info(f"Subscribed to H0STASP0 for stock: {stock_code}")
 
-
-# WebSocket 메시지 처리 함수
-async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
-    kafka_data = process_data_for_kafka(message, stock_symbol)
-    if kafka_data:
-        try:
-            if data_queue.qsize() > 1000:  # 메모리 누수를 방지하기 위한 큐 크기 제한
-                logger.warning("Data queue size exceeded limit. Dropping oldest data.")
-                await data_queue.get()  # 가장 오래된 데이터를 삭제
-            await data_queue.put(kafka_data)
-        except Exception as e:
-            logger.error(f"Failed to add data to queue: {e}")
-
-
-# WebSocket 핸들러 함수
-async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
-    approval_key = await get_approval()
-    if not approval_key:
-        logger.error("Approval key not obtained, terminating connection.")
-        return
-
-    url = "ws://ops.koreainvestment.com:31000"
-    while True:  # 재시도 로직 추가
-        try:
-            async with websockets.connect(url, ping_interval=60) as websocket:
-                # 각 종목에 대해 구독
-                for stock in stock_symbols:
-                    await subscribe(websocket, approval_key, stock["symbol"])
-
-                # 메시지 수신 및 처리
-                async for message in websocket:
-                    d1 = message.split("|")
-                    if len(d1) >= 3:
-                        stock_symbol = d1[3].split("^")[0]
-                        await handle_message(data_queue, message, stock_symbol)
-        except websockets.exceptions.ConnectionClosed as e:
-            logger.warning(f"WebSocket connection closed: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
-        except Exception as e:
-            logger.error(f"Error in WebSocket handler: {e}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
-            
-            
-async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_asking_prices"):
-    while True:
-        data = await data_queue.get()
-        if data is None:  # 종료 신호
-            break
-
-        try:
-            # 데이터를 producer.send_and_wait에 직접 전달 (직렬화는 value_serializer에서 처리)
-            if isinstance(data, dict):
-                await producer.send_and_wait(topic, value=data)
-                logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
-                logger.debug(f"Data: {data}")
-            else:
-                raise TypeError(f"Unexpected data format: {type(data)}")
-        except Exception as e:
-            logger.error(f"Failed to send data to Kafka: {e}")
-        finally:
-            data_queue.task_done()
 
 # Kafka 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
@@ -133,7 +72,6 @@ def process_data_for_kafka(data, stock_symbol):
             recvData = d1[3]
             result = recvData.split("^")
             if len(result) > 42:  # 필수 호가 데이터가 포함된 최소 인덱스 확인
-                # 데이터 파싱
                 sell_prices = {f"sell_price_{i + 3}": result[12 - i] for i in range(8)}
                 sell_volumes = {f"sell_volume_{i + 3}": result[32 - i] for i in range(8)}
                 buy_prices = {f"buy_price_{i + 1}": result[13 + i] for i in range(8)}
@@ -156,20 +94,77 @@ def process_data_for_kafka(data, stock_symbol):
     return None
 
 
+# WebSocket 메시지 처리 함수
+async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
+    kafka_data = process_data_for_kafka(message, stock_symbol)
+    if kafka_data:
+        try:
+            if data_queue.qsize() > 1000:  # 큐 크기 제한
+                logger.warning("Data queue size exceeded limit. Dropping oldest data.")
+                await data_queue.get()
+            await data_queue.put(kafka_data)
+        except Exception as e:
+            logger.error(f"Failed to add data to queue: {e}")
+
+
+# WebSocket 핸들러 함수
+async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
+    approval_key = await get_approval()
+    if not approval_key:
+        logger.error("Approval key not obtained. Terminating WebSocket handler.")
+        return
+
+    url = "ws://ops.koreainvestment.com:31000"
+    while True:
+        try:
+            async with websockets.connect(url, ping_interval=30) as websocket:
+                # 병렬 구독 요청
+                await asyncio.gather(*[subscribe(websocket, approval_key, stock["symbol"]) for stock in stock_symbols])
+
+                # 메시지 수신 및 처리
+                async for message in websocket:
+                    d1 = message.split("|")
+                    if len(d1) >= 3:
+                        stock_symbol = d1[3].split("^")[0]
+                        await handle_message(data_queue, message, stock_symbol)
+        except websockets.ConnectionClosed as e:
+            logger.warning(f"WebSocket connection closed: {e}. Retrying in 5 seconds...")
+            await asyncio.sleep(5)
+        except Exception as e:
+            logger.error(f"Error in WebSocket handler: {e}. Retrying in 5 seconds...")
+            await asyncio.sleep(5)
+
+
+# Kafka 프로듀서 태스크
+async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_asking_prices"):
+    while True:
+        data = await data_queue.get()
+        if data is None:
+            break
+
+        try:
+            if isinstance(data, dict):
+                serialized_data = orjson.dumps(data)
+                await producer.send_and_wait(topic, value=serialized_data)
+                logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
+            else:
+                raise TypeError(f"Unexpected data format: {type(data)}")
+        except Exception as e:
+            logger.error(f"Failed to send data to Kafka: {e}")
+        finally:
+            data_queue.task_done()
+
+
 # WebSocket 실행 함수
 async def run_asking_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
-    data_queue = asyncio.Queue()
+    data_queue = asyncio.Queue(maxsize=1000)
 
-    # Kafka Producer 비동기 초기화
     producer = await init_kafka_producer()
-    if producer is None:
-        logger.error("Kafka producer initialization failed. Exiting.")
+    if not producer:
+        logger.error("Kafka producer initialization failed. Exiting WebSocket task.")
         return data_queue
 
-    # Kafka 전송 작업 비동기 시작
     asyncio.create_task(kafka_producer_task(data_queue, producer))
-    
-    # WebSocket 연결 핸들러 비동기 시작
     await websocket_handler(stock_symbols, data_queue)
 
     return data_queue
