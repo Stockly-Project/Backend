@@ -3,16 +3,37 @@ import websockets
 import aiohttp
 import asyncio
 from typing import Dict, List
-from src.common.producer import init_kafka_producer
+from src.common.producer import init_kafka_producer, close_kafka_producer
 from src.logger import logger
 from .crud import get_company_details
 import orjson
+import hashlib
+import random
+from datetime import datetime
+
 
 TOPIC_STOCK_DATA = "real_time_asking_prices"
 
+def generate_key(symbol):
+    # 오늘 날짜와 랜덤 숫자 생성
+    today_date = datetime.now().strftime("%Y%m%d")  # "YYYYMMDD" 형식
+    random_number = random.randint(1, 1000000)  # 1부터 1000000 사이의 랜덤 정수
+
+    # 키 조합
+    raw_key = f"{symbol}_{today_date}_{random_number}"
+    hashed_key = int(hashlib.md5(raw_key.encode('utf-8')).hexdigest(), 16) % 30  # 30개의 파티션
+    return f"{symbol}_{hashed_key}"
+
+
+# 승인 키 캐싱 변수
+approval_key_cache = None
 
 # 승인 키 가져오는 함수
 async def get_approval():
+    global approval_key_cache
+    if approval_key_cache:  # 캐시된 키 반환
+        return approval_key_cache
+
     url = 'https://openapivts.koreainvestment.com:29443/oauth2/Approval'
     headers = {"content-type": "application/json"}
     body = {
@@ -27,10 +48,10 @@ async def get_approval():
                     logger.error(f"Failed to get approval key. Status: {res.status}")
                     return None
                 data = await res.json()
-                approval_key = data.get("approval_key")
-                if approval_key:
+                approval_key_cache = data.get("approval_key")
+                if approval_key_cache:
                     logger.info("Approval key obtained successfully.")
-                    return approval_key
+                    return approval_key_cache
                 else:
                     logger.error("Approval key not found in response.")
                     return None
@@ -59,7 +80,7 @@ async def subscribe(websocket, app_key, stock_code):
     logger.info(f"Subscribed to H0STASP0 for stock: {stock_code}")
 
 
-# Kafka 데이터 처리 함수
+# Kafka로 보낼 데이터 처리 함수
 def process_data_for_kafka(data, stock_symbol):
     stock_info = get_company_details(stock_symbol)
     if not stock_info or "id" not in stock_info or "name" not in stock_info:
@@ -89,6 +110,8 @@ def process_data_for_kafka(data, stock_symbol):
                 return stock_data
             else:
                 logger.error(f"Unexpected result format for data: {result}")
+        else:
+            logger.error("Data format is invalid for processing.")
     except (IndexError, ValueError, TypeError) as e:
         logger.error(f"Error processing stock data for Kafka: {e}")
     return None
@@ -97,7 +120,7 @@ def process_data_for_kafka(data, stock_symbol):
 # WebSocket 메시지 처리 함수
 async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
     kafka_data = process_data_for_kafka(message, stock_symbol)
-    if kafka_data:
+    if kafka_data:  # 유효한 데이터만 큐에 추가
         try:
             if data_queue.qsize() > 1000:  # 큐 크기 제한
                 logger.warning("Data queue size exceeded limit. Dropping oldest data.")
@@ -139,16 +162,21 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
 async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_time_asking_prices"):
     while True:
         data = await data_queue.get()
+        logger.error(data)
         if data is None:
-            break
+            continue  # None 데이터를 무시하고 다음 데이터를 처리
 
         try:
+            # 세부 키 생성
+            key = generate_key(data["symbol"])
             if isinstance(data, dict):
                 serialized_data = orjson.dumps(data)
-                await producer.send_and_wait(topic, value=serialized_data)
+                logger.error(f"Preparing to send data to Kafka: {serialized_data}")
+                await producer.send_and_wait(topic, key=key, value=serialized_data)
                 logger.info(f"Sent data to Kafka for symbol: {data.get('symbol', 'unknown')}")
             else:
-                raise TypeError(f"Unexpected data format: {type(data)}")
+
+                logger.error(f"Unexpected data format, skipping: {type(data)}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
         finally:
@@ -158,13 +186,15 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer, topic="real_t
 # WebSocket 실행 함수
 async def run_asking_websocket_background_multiple(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
     data_queue = asyncio.Queue(maxsize=1000)
-
     producer = await init_kafka_producer()
     if not producer:
         logger.error("Kafka producer initialization failed. Exiting WebSocket task.")
         return data_queue
 
-    asyncio.create_task(kafka_producer_task(data_queue, producer))
-    await websocket_handler(stock_symbols, data_queue)
+    try:
+        asyncio.create_task(kafka_producer_task(data_queue, producer))
+        await websocket_handler(stock_symbols, data_queue)
+    finally:
+        await close_kafka_producer(producer)
 
     return data_queue
