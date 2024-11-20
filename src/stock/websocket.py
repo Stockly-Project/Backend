@@ -221,7 +221,7 @@ async def websocket_handler_mock(stock_symbols, data_queue):
             for stock in stock_symbols:
                 message = await generate_mock_stock_message(stock["symbol"])
                 await handle_message(data_queue, message)
-            await asyncio.sleep(5)  # 1초 간격으로 데이터 생성
+            await asyncio.sleep(0.5)  # 0.5초 간격으로 데이터 생성
     except Exception as e:
         logger.error(f"Error in mock WebSocket handler: {e}")
 

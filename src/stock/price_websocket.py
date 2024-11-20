@@ -118,7 +118,12 @@ def process_data_for_kafka(data, stock_symbol):
 
 
 # WebSocket 메시지 처리 함수
-async def handle_message(data_queue: asyncio.Queue, message: str, stock_symbol: str):
+async def handle_message(data_queue: asyncio.Queue, message: str):
+    parts = message.split("|")
+    if len(parts) < 4:
+        logger.error(f"Invalid message format: {message}")
+        return
+    stock_symbol = parts[3].split("^")[0]  # 세부 데이터의 첫 번째 항목이 심볼
     kafka_data = process_data_for_kafka(message, stock_symbol)
     if kafka_data:  # 유효한 데이터만 큐에 추가
         try:
@@ -149,7 +154,7 @@ async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asy
                     d1 = message.split("|")
                     if len(d1) >= 3:
                         stock_symbol = d1[3].split("^")[0]
-                        await handle_message(data_queue, message, stock_symbol)
+                        await handle_message(data_queue, message)
         except websockets.ConnectionClosed as e:
             logger.warning(f"WebSocket connection closed: {e}. Retrying in 5 seconds...")
             await asyncio.sleep(5)
@@ -194,6 +199,100 @@ async def run_asking_websocket_background_multiple(stock_symbols: List[Dict[str,
     try:
         asyncio.create_task(kafka_producer_task(data_queue, producer))
         await websocket_handler(stock_symbols, data_queue)
+    finally:
+        await close_kafka_producer(producer)
+
+    return data_queue
+
+
+
+
+# Mock Kafka 프로듀서 태스크
+async def kafka_producer_task_mock(data_queue: asyncio.Queue, producer, topic="real_time_asking_prices"):
+    while True:
+        data = await data_queue.get()
+        if data is None:
+            continue  # None 데이터를 무시하고 다음 데이터를 처리
+
+        try:
+            key = f"{data['symbol']}_{random.randint(1, 1000)}"  # 간단한 키 생성
+            serialized_data = orjson.dumps(data)
+            logger.error(f"Preparing to send mock data to Kafka: {serialized_data}")
+            await producer.send_and_wait(topic, key=key, value=serialized_data)
+            logger.info(f"Sent mock data to Kafka for symbol: {data.get('symbol', 'unknown')}")
+        except Exception as e:
+            logger.error(f"Failed to send mock data to Kafka: {e}")
+        finally:
+            data_queue.task_done()
+
+async def generate_mock_data(stock_symbol: str) -> Dict:
+    """모의 데이터를 생성하여 반환하는 함수"""
+    stock_info = get_company_details(stock_symbol)
+    if not stock_info:
+        logger.error(f"Invalid stock information for symbol: {stock_symbol}")
+        return {}
+
+    mock_data = {
+        "id": stock_info["id"],
+        "symbol": stock_symbol,
+        "name": stock_info["name"],
+        "sell_price_3": random.uniform(100, 200),
+        "sell_price_4": random.uniform(200, 300),
+        "sell_price_5": random.uniform(300, 400),
+        "sell_volume_3": random.randint(100, 1000),
+        "sell_volume_4": random.randint(100, 1000),
+        "sell_volume_5": random.randint(100, 1000),
+        "buy_price_1": random.uniform(50, 100),
+        "buy_price_2": random.uniform(100, 150),
+        "buy_price_3": random.uniform(150, 200),
+        "buy_volume_1": random.randint(100, 1000),
+        "buy_volume_2": random.randint(100, 1000),
+        "buy_volume_3": random.randint(100, 1000),
+        "timestamp": datetime.now().isoformat()
+    }
+    logger.info(f"Mock data generated for symbol: {stock_symbol}")
+    return mock_data
+
+# WebSocket 메시지 처리 함수
+async def handle_message(data_queue: asyncio.Queue, data: Dict):
+    """큐에 데이터를 추가하는 함수"""
+    try:
+        if data_queue.qsize() > 1000:  # 큐 크기 제한
+            logger.warning("Data queue size exceeded limit. Dropping oldest data.")
+            await data_queue.get()  # 가장 오래된 데이터 삭제
+        await data_queue.put(data)  # 새로운 데이터 추가
+        logger.info(f"Data added to queue: {data['symbol']}")
+    except Exception as e:
+        logger.error(f"Failed to add data to queue: {e}")
+
+
+# Mock WebSocket 메시지 처리 함수
+async def websocket_handler_mock(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
+    """모의 WebSocket 메시지를 처리하는 핸들러"""
+    try:
+        while True:
+            for stock in stock_symbols:
+                stock_symbol = stock["symbol"]
+                mock_data = await generate_mock_data(stock_symbol)
+                if mock_data:  # 유효한 데이터만 처리
+                    await handle_message(data_queue, mock_data)  # 수정된 함수 호출
+            await asyncio.sleep(1)  # 1초 간격으로 데이터 생성
+    except Exception as e:
+        logger.error(f"Error in mock WebSocket handler: {e}")
+
+
+# Mock WebSocket 실행 함수
+async def run_asking_websocket_background_multiple_mock(stock_symbols: List[Dict[str, str]]) -> asyncio.Queue:
+    """모의 WebSocket 데이터 생성 및 Kafka 전송 실행"""
+    data_queue = asyncio.Queue(maxsize=1000)
+    producer = await init_kafka_producer()
+    if not producer:
+        logger.error("Kafka producer initialization failed. Exiting mock WebSocket task.")
+        return data_queue
+
+    try:
+        asyncio.create_task(kafka_producer_task_mock(data_queue, producer))
+        await websocket_handler_mock(stock_symbols, data_queue)
     finally:
         await close_kafka_producer(producer)
 

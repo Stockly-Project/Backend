@@ -5,8 +5,8 @@ from src.stock import routes as stock_routes
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from .stock.websocket import run_websocket_background_multiple
-from .stock.price_websocket import run_asking_websocket_background_multiple
+from .stock.websocket import run_websocket_background_multiple, run_websocket_background_multiple_mock
+from .stock.price_websocket import run_asking_websocket_background_multiple, run_asking_websocket_background_multiple_mock
 from .logger import logger
 from .common.admin_kafka_client import create_kafka_topic
 from .stock.crud import get_symbols_for_page
@@ -26,8 +26,8 @@ async def schedule_websockets():
     try:
         logger.debug("Starting WebSocket tasks...")
         await asyncio.gather(
-            run_websocket_background_multiple(symbol_list),
-            run_asking_websocket_background_multiple(symbol_list),
+            run_websocket_background_multiple_mock(symbol_list),
+            run_asking_websocket_background_multiple_mock(symbol_list),
         )
         logger.debug("Both WebSocket tasks completed successfully.")
     except Exception as e:
