@@ -5,7 +5,6 @@ from src.logger import logger
 import random
 import orjson
 
-TOPIC_STOCK_DATA = "real_time_stock_prices"
 
 async def init_kafka_producer():
     try:
@@ -18,16 +17,14 @@ async def init_kafka_producer():
         # Kafka Producer 초기화
         producer = AIOKafkaProducer(
             bootstrap_servers=bootstrap_servers,
-            value_serializer=lambda v: orjson.dumps(v) if isinstance(v, dict) else v  # JSON 직렬화
+            value_serializer=lambda v: orjson.dumps(v) if isinstance(v, dict) else v,  # JSON 직렬화
+            key_serializer=lambda k: k.encode('utf-8')
         )
         await producer.start()
         logger.info("Kafka producer initialized successfully.")
         return producer
     except Exception as e:
         logger.error(f"Error initializing Kafka producer: {e}")
-        if producer:  # 실패 시 안전하게 닫기
-            await producer.stop()
-        return None
 
 # Producer를 닫는 함수
 async def close_kafka_producer(producer):

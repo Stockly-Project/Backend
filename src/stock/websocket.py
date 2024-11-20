@@ -7,14 +7,19 @@ import orjson
 import json
 import websockets
 import aiohttp
-from aiokafka import AIOKafkaProducer
 from src.logger import logger
 from .crud import get_company_details
-from src.common.producer import init_kafka_producer
-
+from src.common.producer import init_kafka_producer, close_kafka_producer
+import random
+import hashlib
 TOPIC_STOCK_DATA = "real_time_stock_prices"
 approval_key_cache = None  # 승인 키 캐싱
 
+# 세부 키 생성 함수
+def generate_key(symbol, timestamp):
+    raw_key = f"{symbol}_{timestamp}"
+    hashed_key = int(hashlib.md5(raw_key.encode('utf-8')).hexdigest(), 16) % 3  # 30개의 파티션
+    return f"{symbol}_{hashed_key}"
 
 # 승인 키 가져오는 함수
 async def get_approval():
@@ -164,7 +169,9 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer):
         if data is None:  # 종료 신호
             break
         try:
-            await producer.send_and_wait(TOPIC_STOCK_DATA, value=data)
+            # 세부 키 생성
+            key = generate_key(data["symbol"], data["timestamp"])
+            await producer.send_and_wait(TOPIC_STOCK_DATA, key=key, value=data)
             logger.info(f"Sent data to Kafka: {data}")
         except Exception as e:
             logger.error(f"Failed to send data to Kafka: {e}")
@@ -179,7 +186,83 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
     if not producer:
         logger.error("Kafka producer initialization failed.")
         return
+    try:
+        # Kafka 프로듀서와 WebSocket 핸들러 비동기 실행
+        asyncio.create_task(kafka_producer_task(data_queue, producer))
+        await websocket_handler(stock_symbols, data_queue)
+    finally:
+        # Kafka Producer 안전 종료
+        await close_kafka_producer(producer)
 
-    # Kafka 프로듀서와 WebSocket 핸들러 비동기 실행
-    asyncio.create_task(kafka_producer_task(data_queue, producer))
-    await websocket_handler(stock_symbols, data_queue)
+
+
+
+
+
+async def generate_mock_stock_message(symbol):
+    """Simulates real-time stock message generation."""
+    parts = [
+        "SOME_HEADER",
+        "SOME_OTHER_PART",
+        "STOCK_DATA",
+        f"{symbol}^12345^1000^{random.uniform(50.0, 60.0):.2f}^"
+        f"{random.uniform(51.0, 61.0):.2f}^{random.uniform(-2.0, 2.0):.2f}^"
+        f"{random.randint(500, 1500)}^{random.uniform(51.2, 61.2):.2f}^"
+        f"{random.uniform(50.0, 55.0):.2f}^50.0^100^{random.randint(1000, 10000)}^"
+        f"{random.randint(100000, 500000)}",
+    ]
+    return "|".join(parts)
+
+
+async def websocket_handler_mock(stock_symbols, data_queue):
+    """Simulates an infinite stream of WebSocket messages."""
+    try:
+        while True:  # 지속적으로 데이터를 생성
+            for stock in stock_symbols:
+                message = await generate_mock_stock_message(stock["symbol"])
+                await handle_message(data_queue, message)
+            await asyncio.sleep(5)  # 1초 간격으로 데이터 생성
+    except Exception as e:
+        logger.error(f"Error in mock WebSocket handler: {e}")
+
+
+async def kafka_producer_task_mock(data_queue, producer):
+    """Simulates a continuous Kafka producer."""
+    while True:
+        try:
+            # 데이터 가져오기
+            data = await data_queue.get()
+            if data is None:  # 종료 신호 처리
+                break
+
+            # 세부 키 생성
+            key = generate_key(data["symbol"], data["timestamp"])
+            await producer.send_and_wait(TOPIC_STOCK_DATA, key=key, value=data)
+            # Kafka로 전송 시 key와 value를 로깅
+            logger.info(f"Mock sent data to Kafka with key: {key}, value: {data}")
+        except Exception as e:
+            logger.error(f"Failed to mock send data to Kafka: {e}")
+        finally:
+            # 데이터 처리 완료
+            data_queue.task_done()
+
+# WebSocket과 Kafka 실행 함수
+async def run_websocket_background_multiple_mock(stock_symbols):
+    """Runs the continuous mock WebSocket and Kafka flow."""
+    data_queue = asyncio.Queue(maxsize=1000)
+
+    # Kafka Producer 초기화
+    producer = await init_kafka_producer()
+    if not producer:
+        logger.error("Kafka producer initialization failed.")
+        return
+
+    try:
+        # Kafka producer task 실행
+        asyncio.create_task(kafka_producer_task_mock(data_queue, producer))
+
+        # WebSocket handler 실행
+        await websocket_handler_mock(stock_symbols, data_queue)
+    finally:
+        # Kafka Producer 안전 종료
+        await close_kafka_producer(producer)

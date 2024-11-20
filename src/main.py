@@ -74,5 +74,3 @@ app.add_middleware(
 @app.get("/")
 def hello():
     return {"message": "메인페이지입니다"}
-
-
