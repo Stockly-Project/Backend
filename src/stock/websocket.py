@@ -9,17 +9,12 @@ import websockets
 import aiohttp
 from src.logger import logger
 from .crud import get_company_details
-from src.common.producer import init_kafka_producer, close_kafka_producer
+from src.common.producer import init_kafka_producer_faust, close_kafka_producer
 import random
-import hashlib
+from .faust_models import Stock
+
 TOPIC_STOCK_DATA = "real_time_stock_prices"
 approval_key_cache = None  # 승인 키 캐싱
-
-# 세부 키 생성 함수
-def generate_key(symbol, timestamp):
-    raw_key = f"{symbol}_{timestamp}"
-    hashed_key = int(hashlib.md5(raw_key.encode('utf-8')).hexdigest(), 16) % 3  # 30개의 파티션
-    return f"{symbol}_{hashed_key}"
 
 # 승인 키 가져오는 함수
 async def get_approval():
@@ -72,7 +67,6 @@ async def subscribe(websocket, app_key, stock_code):
     await websocket.send(message)
     logger.info(f"Subscribed to H0STCNT0 for stock: {stock_code}")
 
-
 def process_data_for_kafka(data: str, stock_symbol: str):
     stock_info = get_company_details(stock_symbol)
     if not stock_info or "id" not in stock_info or "name" not in stock_info:
@@ -91,45 +85,27 @@ def process_data_for_kafka(data: str, stock_symbol: str):
             # 한국 시간 문자열 생성
             korea_time = datetime.now(ZoneInfo("Asia/Seoul"))
             korea_time_str = korea_time.strftime("%Y-%m-%d %H:%M:%S")
-            return {
-                "id": stock_info["id"],
-                "name": stock_info["name"],
-                "symbol": stock_symbol,
-                "timestamp": korea_time_str,  # 한국 시간 보정
-                "open": result[7],
-                "close": result[2],
-                "high": result[8],
-                "low": result[9],
-                "rate_price": result[4],
-                "rate": result[5],
-                "volume": result[12],
-                "trading_value": float(result[2]) * int(result[12]),
-            }
+
+            # faust.Record 객체 생성
+            return Stock(
+                id=stock_info["id"],
+                name=stock_info["name"],
+                symbol=stock_symbol,
+                timestamp=korea_time_str,
+                open=float(result[7]),
+                close=float(result[2]),
+                high=float(result[8]),
+                low=float(result[9]),
+                rate_price=float(result[4]),
+                rate=float(result[5]),
+                volume=int(result[12]),
+                trading_value=float(result[2]) * int(result[12]),
+            )
         else:
             logger.error(f"Unexpected result format for data: {result}")
     except (IndexError, ValueError, TypeError) as e:
         logger.error(f"Error processing stock data for Kafka: {data}. Error: {e}")
     return None
-
-
-async def handle_message(data_queue: asyncio.Queue, message: str):
-    try:
-        # 메시지를 `|`로 나누고 심볼 추출
-        parts = message.split("|")
-        if len(parts) < 4:
-            logger.error(f"Invalid message format: {message}")
-            return
-
-        stock_symbol = parts[3].split("^")[0]  # 세부 데이터의 첫 번째 항목이 심볼
-        kafka_data = process_data_for_kafka(message, stock_symbol)
-        if kafka_data:
-            if data_queue.qsize() > 1000:  # 큐 크기 제한
-                logger.warning("Data queue size exceeded limit. Dropping oldest data.")
-                await data_queue.get()
-            await data_queue.put(kafka_data)
-    except Exception as e:
-        logger.error(f"Error processing message: {message}. Error: {e}")
-
 
 # WebSocket 핸들러 함수
 async def websocket_handler(stock_symbols: List[Dict[str, str]], data_queue: asyncio.Queue):
@@ -169,20 +145,49 @@ async def kafka_producer_task(data_queue: asyncio.Queue, producer):
         if data is None:  # 종료 신호
             break
         try:
-            # 세부 키 생성
-            key = generate_key(data["symbol"], data["timestamp"])
-            await producer.send_and_wait(TOPIC_STOCK_DATA, key=key, value=data)
-            logger.info(f"Sent data to Kafka: {data}")
+            # Faust Record 객체 처리
+            if isinstance(data, Stock):
+                logger.info(f"Processing Faust Record: {data}")
+                data_dict = data.to_representation()  # Record -> dict
+                serialized_data = orjson.dumps(data_dict).decode('utf-8')  # dict -> JSON
+                logger.info(f"Serialized data: {serialized_data}")
+
+                # Kafka로 전송
+                await producer.send_and_wait(TOPIC_STOCK_DATA, value=serialized_data.encode("utf-8"))
+                logger.info(f"Sent data to Kafka: {serialized_data}")
+            else:
+                logger.warning(f"Unexpected data type: {type(data)}")
         except Exception as e:
-            logger.error(f"Failed to send data to Kafka: {e}")
+            logger.error(f"Failed to process data: {e}. Data: {data}")
         finally:
             data_queue.task_done()
+
+
+
+# WebSocket 메시지 핸들러 수정
+async def handle_message(data_queue: asyncio.Queue, message: str):
+    try:
+        # 메시지를 `|`로 나누고 심볼 추출
+        parts = message.split("|")
+        if len(parts) < 4:
+            logger.error(f"Invalid message format: {message}")
+            return
+
+        stock_symbol = parts[3].split("^")[0]  # 세부 데이터의 첫 번째 항목이 심볼
+        kafka_data = process_data_for_kafka(message, stock_symbol)
+        if kafka_data:
+            if data_queue.qsize() > 1000:  # 큐 크기 제한
+                logger.warning("Data queue size exceeded limit. Dropping oldest data.")
+                await data_queue.get()
+            await data_queue.put(kafka_data)
+    except Exception as e:
+        logger.error(f"Error processing message: {message}. Error: {e}")
 
 
 # WebSocket 실행 함수
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]):
     data_queue = asyncio.Queue(maxsize=1000)
-    producer = await init_kafka_producer()
+    producer = await init_kafka_producer_faust()
     if not producer:
         logger.error("Kafka producer initialization failed.")
         return
@@ -199,29 +204,62 @@ async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]])
 
 
 
-async def generate_mock_stock_message(symbol):
-    """Simulates real-time stock message generation."""
-    parts = [
-        "SOME_HEADER",
-        "SOME_OTHER_PART",
-        "STOCK_DATA",
-        f"{symbol}^12345^1000^{random.uniform(50.0, 60.0):.2f}^"
-        f"{random.uniform(51.0, 61.0):.2f}^{random.uniform(-2.0, 2.0):.2f}^"
-        f"{random.randint(500, 1500)}^{random.uniform(51.2, 61.2):.2f}^"
-        f"{random.uniform(50.0, 55.0):.2f}^50.0^100^{random.randint(1000, 10000)}^"
-        f"{random.randint(100000, 500000)}",
-    ]
-    return "|".join(parts)
+
+
+
+
+async def generate_mock_stock_message(stock_symbol: str):
+    """Simulates real-time stock message generation and returns a Stock object."""
+    stock_info = get_company_details(stock_symbol)
+    if not stock_info or "id" not in stock_info or "name" not in stock_info:
+        logger.error(f"Invalid company details for symbol: {stock_symbol}")
+        return None
+    try:
+        # 랜덤 데이터 생성
+        open_price = round(random.uniform(50.0, 60.0), 2)
+        close_price = round(random.uniform(50.0, 60.0), 2)
+        high_price = round(random.uniform(55.0, 65.0), 2)
+        low_price = round(random.uniform(45.0, 55.0), 2)
+        rate_price = round(random.uniform(51.0, 61.0), 2)
+        rate = round(random.uniform(-2.0, 2.0), 2)
+        volume = random.randint(1000, 10000)
+        trading_value = close_price * volume
+
+        # 한국 시간 문자열 생성
+        korea_time = datetime.now(ZoneInfo("Asia/Seoul"))
+        korea_time_str = korea_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Stock 객체 생성
+        stock = Stock(
+            id=stock_info["id"],
+            name=stock_info["name"],
+            symbol=stock_symbol,
+            timestamp=korea_time_str,
+            open=open_price,
+            close=close_price,
+            high=high_price,
+            low=low_price,
+            rate_price=rate_price,
+            rate=rate,
+            volume=volume,
+            trading_value=trading_value,
+        )
+
+        return stock
+    except Exception as e:
+        logger.error(f"Error generating mock stock message for {stock_symbol}: {e}")
+        return None
 
 
 async def websocket_handler_mock(stock_symbols, data_queue):
     """Simulates an infinite stream of WebSocket messages."""
     try:
-        while True:  # 지속적으로 데이터를 생성
-            for stock in stock_symbols:
-                message = await generate_mock_stock_message(stock["symbol"])
-                await handle_message(data_queue, message)
-            await asyncio.sleep(0.5)  # 0.5초 간격으로 데이터 생성
+        while True:
+            for stock_symbol in stock_symbols:
+                stock = await generate_mock_stock_message(stock_symbol["symbol"])
+                if stock:
+                    await data_queue.put(stock)  # Stock 객체를 직접 큐에 추가
+            await asyncio.sleep(0.5)
     except Exception as e:
         logger.error(f"Error in mock WebSocket handler: {e}")
 
@@ -230,20 +268,26 @@ async def kafka_producer_task_mock(data_queue, producer):
     """Simulates a continuous Kafka producer."""
     while True:
         try:
-            # 데이터 가져오기
-            data = await data_queue.get()
-            if data is None:  # 종료 신호 처리
+            stock = await data_queue.get()
+            if stock is None:  # 종료 신호 처리
                 break
 
-            # 세부 키 생성
-            key = generate_key(data["symbol"], data["timestamp"])
-            await producer.send_and_wait(TOPIC_STOCK_DATA, key=key, value=data)
-            # Kafka로 전송 시 key와 value를 로깅
-            logger.info(f"Mock sent data to Kafka with key: {key}, value: {data}")
+            # Stock 객체를 JSON으로 변환
+            stock_dict = stock.__dict__
+
+            # JSON 직렬화 가능하도록 모든 `set`을 `list`로 변환
+            for key, value in stock_dict.items():
+                if isinstance(value, set):
+                    stock_dict[key] = list(value)
+
+            stock_json = orjson.dumps(stock_dict).decode("utf-8")
+
+            # Kafka로 전송
+            await producer.send_and_wait(TOPIC_STOCK_DATA, value=stock_json.encode("utf-8"))
+            logger.info(f"Mock sent data to Kafka: {stock_json}")
         except Exception as e:
             logger.error(f"Failed to mock send data to Kafka: {e}")
         finally:
-            # 데이터 처리 완료
             data_queue.task_done()
 
 # WebSocket과 Kafka 실행 함수
@@ -252,7 +296,7 @@ async def run_websocket_background_multiple_mock(stock_symbols):
     data_queue = asyncio.Queue(maxsize=1000)
 
     # Kafka Producer 초기화
-    producer = await init_kafka_producer()
+    producer = await init_kafka_producer_faust()
     if not producer:
         logger.error("Kafka producer initialization failed.")
         return

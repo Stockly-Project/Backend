@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from src.database import get_db_connection
 from typing import List
+import mysql.connector
 
 # 특정 심볼로 회사 정보 조회
 def get_company_by_symbol(symbol: str):
@@ -18,9 +19,11 @@ def get_company_by_symbol(symbol: str):
     return company
 
 
-def get_symbols_for_page(page: int, page_size: int = 20) -> List[str]:
+def get_symbols_for_page(page: int, page_size: int = 20, database: mysql.connector.MySQLConnection = None) -> List[str]:
     start_index = (page - 1) * page_size
-    database = get_db_connection()
+    # database 파라미터가 없으면 새로운 연결 생성
+    if database is None:
+        database = get_db_connection()
     cursor = database.cursor()
 
     query = """
