@@ -19,7 +19,7 @@ async def initialize_kafka():
     # Kafka 토픽을 초기화하는 함수 호출 (토픽이 없다면 생성)
     create_kafka_topic("real_time_stock_prices", num_partitions=15)
     create_kafka_topic("real_time_asking_prices", num_partitions=5)
-    create_kafka_topic("one_minutes_stock_prices", num_partitions=5)
+    # create_kafka_topic("one_minutes_stock_prices", num_partitions=5)
     logger.info("Kafka topic initialized.")
     
 

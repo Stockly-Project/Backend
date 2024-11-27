@@ -222,7 +222,7 @@ async def generate_mock_stock_message(stock_symbol: str):
         low_price = round(random.uniform(45.0, 55.0), 2)
         rate_price = round(random.uniform(51.0, 61.0), 2)
         rate = round(random.uniform(-2.0, 2.0), 2)
-        volume = random.randint(1000, 10000)
+        volume = random.randint(10, 10)
         trading_value = close_price * volume
 
         # 한국 시간 문자열 생성

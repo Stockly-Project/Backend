@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS stock (
     close INT,
     rate DOUBLE,
     rate_price INT,
-    trading_value DECIMAL(20, 2),
+    trading_value BIGINT,
     is_daily BOOLEAN DEFAULT TRUE
 );
 
@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS company (
 );
 
 INSERT INTO company (name, symbol) VALUES
-('삼성전자', '005930');
--- ('LG', '003550'),
--- ('SK하이닉스', '000660'),
--- ('삼성바이오로직스','207940'),
--- ('기아', '000270');
+('삼성전자', '005930'),
+('LG', '003550'),
+('SK하이닉스', '000660'),
+('삼성바이오로직스','207940'),
+('기아', '000270');
