@@ -9,7 +9,7 @@ import websockets
 import aiohttp
 from src.logger import logger
 from .crud import get_company_details
-from src.common.producer import init_kafka_producer_faust, close_kafka_producer
+from src.common.producer import init_kafka_producer, close_kafka_producer
 import random
 from .faust_models import Stock
 
@@ -187,7 +187,7 @@ async def handle_message(data_queue: asyncio.Queue, message: str):
 # WebSocket 실행 함수
 async def run_websocket_background_multiple(stock_symbols: List[Dict[str, str]]):
     data_queue = asyncio.Queue(maxsize=1000)
-    producer = await init_kafka_producer_faust()
+    producer = await init_kafka_producer()
     if not producer:
         logger.error("Kafka producer initialization failed.")
         return
@@ -296,7 +296,7 @@ async def run_websocket_background_multiple_mock(stock_symbols):
     data_queue = asyncio.Queue(maxsize=1000)
 
     # Kafka Producer 초기화
-    producer = await init_kafka_producer_faust()
+    producer = await init_kafka_producer()
     if not producer:
         logger.error("Kafka producer initialization failed.")
         return
