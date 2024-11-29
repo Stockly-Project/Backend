@@ -8,7 +8,7 @@ class Stock(faust.Record, serializer='json'):
     id: int
     name: str
     symbol: str
-    timestamp: str
+    date: str
     open: float
     close: float
     high: float

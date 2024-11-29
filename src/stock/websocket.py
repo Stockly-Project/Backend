@@ -91,7 +91,7 @@ def process_data_for_kafka(data: str, stock_symbol: str):
                 id=stock_info["id"],
                 name=stock_info["name"],
                 symbol=stock_symbol,
-                timestamp=korea_time_str,
+                date=korea_time_str,
                 open=float(result[7]),
                 close=float(result[2]),
                 high=float(result[8]),
