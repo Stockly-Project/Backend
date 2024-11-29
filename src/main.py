@@ -45,9 +45,9 @@ async def run_websocket_tasks(database: mysql.connector.MySQLConnection = None):
     logger.debug(f"Starting WebSocket tasks with symbols: {symbol_list}")
     try:
         await asyncio.gather(
-            # run_websocket_background_multiple(symbol_list),
-            run_asking_websocket_background_multiple(symbol_list),
-            run_websocket_background_multiple_mock(symbol_list),
+            run_websocket_background_multiple(symbol_list),
+            run_asking_websocket_background_multiple(symbol_list)
+            # run_websocket_background_multiple_mock(symbol_list),
         )
     except Exception as e:
         logger.error(f"Error running WebSocket tasks: {e}")
