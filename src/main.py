@@ -32,7 +32,7 @@ async def schedule_websockets():
             # run_websocket_background_multiple_mock(symbol_list),
             # run_asking_websocket_background_multiple_mock(symbol_list),
             run_websocket_background_multiple(symbol_list),
-            # run_asking_websocket_background_multiple(symbol_list),
+            run_asking_websocket_background_multiple(symbol_list),
         )
         logger.debug("Both WebSocket tasks completed successfully.")
     except Exception as e:
