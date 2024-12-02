@@ -20,7 +20,7 @@ async def signup(userdata: UserCreateDTO):
 
 # 로그인 엔드포인트 (세션 ID를 쿠키에 저장하고 Redis에 저장)
 @router.post('/login')
-async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_redis)):
+async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_redis), request: Request):
     user = get_user_by_email(userdata.email)
 
     # 비밀번호 확인
@@ -29,6 +29,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
 
     # 세션 ID 생성
     session_id = str(uuid.uuid4())
+    logger.critical(f"만들어낸 session_id: {session_id}")
 
     # Redis에 세션 ID 저장 (유효 시간 설정: 1시간)
     await redis.set(session_id, user['id'], ex=3600)
@@ -43,7 +44,11 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     secure=False, 
     max_age=3600,        # 유효 시간 설정 (초 단위)
     path="/"            # 전체 경로에서 쿠키 접근 가능
-)
+)   
+    
+    session_id_cookie = request.cookies.get("session_id")
+    logger.critical(f"저장된 session_id_cookie: {session_id_cookie}")
+    
     logger.critical("로그인 성공")
     return {"message": "로그인 성공", "session_id": session_id}
 
