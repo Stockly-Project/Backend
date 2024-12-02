@@ -32,9 +32,14 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     # Redis에 세션 ID 저장 (유효 시간 설정: 1시간)
     await redis.set(session_id, user['id'], ex=3600)
 
-
-    # 세션 ID를 쿠키에 저장
-    response.set_cookie(key="session_id", value=session_id, httponly=True)
+    response.set_cookie(
+    key="session_id",
+    value=session_id,
+    httponly=True,       # JavaScript 접근 금지
+    samesite="Lax",      # CSRF 방어 (Strict 대신 Lax 사용)
+    max_age=3600,        # 유효 시간 설정 (초 단위)
+    path="/"             # 전체 경로에서 쿠키 접근 가능
+)
 
     return {"message": "로그인 성공", "session_id": session_id}
 
