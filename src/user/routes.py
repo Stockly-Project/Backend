@@ -5,6 +5,7 @@ from .crud import create_user, get_user_by_email, soft_delete_user_by_session, g
 from passlib.hash import bcrypt
 import uuid
 from src.database import get_redis
+from src.logger import logger
 
 router = APIRouter(
     prefix="/api/v1/users",
@@ -64,6 +65,7 @@ async def delete_user(request: Request, redis=Depends(get_redis)):
 @router.get('', response_model=UserResponseDTO)
 async def get_user_info(request: Request, redis=Depends(get_redis)):
     session_id = request.cookies.get("session_id")
+    logger.critical(f"session_id: {session_id}")
     if not session_id:
         raise HTTPException(status_code=401, detail="세션 ID가 없습니다.")
 
