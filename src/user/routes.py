@@ -46,10 +46,14 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
 
     return {"message": "로그인 성공", "session_id": session_id}
 
-# 로그아웃 엔드포인트 (세션 쿠키 삭제)
+# 로그아웃 엔드포인트 (세션 쿠키 삭제) 
 @router.post('/logout')
-async def logout(response: Response):
+async def logout(request: Request, response: Response):
+    session_id = request.cookies.get("session_id")
     response.delete_cookie(key="session_id")
+    logger.critical("session_id : " + response.cookies.get("session_id"))
+    if not session_id:
+        raise HTTPException(status_code=401, detail="세션 ID가 없습니다.")
     return {"message": "로그아웃 완료"}
 
 # 유저 소프트 딜리트 엔드포인트 (세션 기반)
