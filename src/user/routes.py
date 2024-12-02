@@ -50,6 +50,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
 @router.post('/logout')
 async def logout(request: Request, response: Response):
     session_id = request.cookies.get("session_id")
+    logger.critical("session_id : " + response.cookies.get("session_id"))
     response.delete_cookie(key="session_id")
     logger.critical("session_id : " + response.cookies.get("session_id"))
     if not session_id:
