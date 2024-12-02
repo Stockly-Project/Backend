@@ -13,9 +13,9 @@ async def get_redis():
         raise ValueError("REDIS_URL 환경 변수를 설정하세요.")
     
     try:
-        logger.debug(f"Redis 연결 시도: {redis_url}")
+        logger.critical(f"Redis 연결 시도: {redis_url}")
         redis = await aioredis.from_url(redis_url)
-        logger.debug("Redis 연결 성공")
+        logger.critical("Redis 연결 성공")
         return redis
     except Exception as e:
         logger.error(f"Redis 연결 실패: {str(e)}")
