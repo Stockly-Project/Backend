@@ -20,7 +20,7 @@ async def signup(userdata: UserCreateDTO):
 
 # 로그인 엔드포인트 (세션 ID를 쿠키에 저장하고 Redis에 저장)
 @router.post('/login')
-async def login(request: Request, response: Response, userdata: UserLoginDTO, redis=Depends(get_redis)):
+async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_redis)):
     user = get_user_by_email(userdata.email)
 
     # 비밀번호 확인
@@ -38,20 +38,17 @@ async def login(request: Request, response: Response, userdata: UserLoginDTO, re
     logger.critical(f"redis_session_id: {redis_session_id}")
 
     response.set_cookie(
-    key="session_id",
-    value=session_id,
-    httponly=True,       # JavaScript 접근 금지
-    samesite="None",     # 타 도메인 간 쿠키 허용
-    secure=False, 
-    max_age=3600,        # 유효 시간 설정 (초 단위)
-    path="/"            # 전체 경로에서 쿠키 접근 가능
-)   
-    
-    session_id_cookie = request.cookies.get("session_id")
-    logger.critical(f"저장된 session_id_cookie: {session_id_cookie}")
-    
-    logger.critical("로그인 성공")
+        key="session_id",
+        value=session_id,
+        httponly=True,
+        samesite="None",
+        secure=False,
+        max_age=3600,
+        path="/"
+    )
+
     return {"message": "로그인 성공", "session_id": session_id}
+
 
 # 로그아웃 엔드포인트 (세션 쿠키 삭제) 
 @router.post('/logout')
