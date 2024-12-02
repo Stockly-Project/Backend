@@ -37,6 +37,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     value=session_id,
     httponly=True,       # JavaScript 접근 금지
     samesite="Lax",      # CSRF 방어 (Strict 대신 Lax 사용)
+    secure=False, 
     max_age=3600,        # 유효 시간 설정 (초 단위)
     path="/"             # 전체 경로에서 쿠키 접근 가능
 )
