@@ -20,7 +20,7 @@ async def signup(userdata: UserCreateDTO):
 
 # 로그인 엔드포인트 (세션 ID를 쿠키에 저장하고 Redis에 저장)
 @router.post('/login')
-async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_redis), request: Request):
+async def login(request: Request, response: Response, userdata: UserLoginDTO, redis=Depends(get_redis)):
     user = get_user_by_email(userdata.email)
 
     # 비밀번호 확인
