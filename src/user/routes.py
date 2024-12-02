@@ -34,6 +34,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     # Redis에 세션 ID 저장 (유효 시간 설정: 1시간)
     await redis.set(session_id, user['id'], ex=3600)
     redis_session_id = await redis.get(session_id)
+    redis_session_id = redis_session_id.decode('utf-8')
     logger.critical(f"redis_session_id: {redis_session_id}")
 
     response.set_cookie(
