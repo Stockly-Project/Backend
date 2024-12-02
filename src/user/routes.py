@@ -51,7 +51,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
 @router.post('/logout')
 async def logout(request: Request, response: Response):
     session_id = request.cookies.get("session_id")
-    logger.critical(request)
+    logger.critical(request.cookies)
     logger.critical(f"session_id: {session_id}")
     response.delete_cookie(key="session_id")
     logger.critical(f"session_id: {session_id}")
@@ -72,7 +72,7 @@ async def delete_user(request: Request, redis=Depends(get_redis)):
 @router.get('', response_model=UserResponseDTO)
 async def get_user_info(request: Request, redis=Depends(get_redis)):
     session_id = request.cookies.get("session_id")
-    logger.critical(request)
+    logger.critical(request.cookies)
     logger.critical(f"session_id: {session_id}")
     if not session_id:
         raise HTTPException(status_code=401, detail="세션 ID가 없습니다.")
