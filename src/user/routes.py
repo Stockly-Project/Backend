@@ -43,7 +43,7 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     path="/",            # 전체 경로에서 쿠키 접근 가능
     domain="localhost.stock-server"  # 쿠키의 유효 도메인
 )
-    logger.log("로그인 성공")
+    logger.critical("로그인 성공")
     return {"message": "로그인 성공", "session_id": session_id}
 
 # 로그아웃 엔드포인트 (세션 쿠키 삭제) 
