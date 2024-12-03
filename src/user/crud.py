@@ -218,7 +218,7 @@ async def get_notification_messages(user_id):
 
         # 알림 메시지 조회 쿼리
         query = """
-        SELECT n.id, c.name AS company_name, c.symbol, n.price, n.is_active
+        SELECT n.id, c.name AS company_name, c.symbol, n.price, n.is_active, n.updated_at
         FROM notification n
         JOIN company c ON n.company_id = c.id
         WHERE n.user_id = %s AND n.is_active = TRUE AND n.is_deleted = FALSE
@@ -233,7 +233,8 @@ async def get_notification_messages(user_id):
                 "company_name": row[1],
                 "symbol": row[2],
                 "price": row[3],
-                "is_active": bool(row[4])
+                "is_active": bool(row[4]),
+                "date": row[5].strftime('%Y-%m-%d %H:%M:%S') 
             }
             for row in messages
         ]
