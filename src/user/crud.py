@@ -3,6 +3,7 @@ from passlib.hash import bcrypt
 from src.database import get_db_connection, get_redis
 import uuid
 from .schemas import UserResponseDTO
+from src.logger import logger
 
 # 이메일로 사용자 조회
 def get_user_by_email(email: str):
@@ -70,14 +71,21 @@ def soft_delete_user_by_session(user_id: int):
 
 # 세션 ID를 쿠키에서 가져와 인증하는 미들웨어
 async def get_authenticated_user_from_session_id(request: Request, redis):
+    """
+    세션 ID를 쿠키에서 가져와 Redis를 통해 사용자 인증.
+    """
     session_id = request.cookies.get("session_id")
 
-    if session_id is None:
-        raise HTTPException(status_code=401, detail="세션 ID가 없습니다.")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Session ID is missing. Please login.")
 
     # 세션 ID를 통해 유저 정보 조회
     user_id = await get_user_from_session(session_id, redis)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Session is invalid or expired.")
+
     return user_id
+
 
 
 # 세션 ID를 쿠키에서 조회하여 반환하는 함수
@@ -120,3 +128,160 @@ async def get_user_info_by_session(session_id: str, redis):
         name=user['name']
     )
 
+
+async def get_notification_prices(user_id):
+    """
+    특정 사용자의 알림 조건 목록 조회 (is_active=0, is_deleted=0).
+    """
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 조건 조회 쿼리
+        query = """
+        SELECT n.id, c.name AS company_name, c.symbol, n.price, n.is_active
+        FROM notification n
+        JOIN company c ON n.company_id = c.id
+        WHERE n.user_id = %s AND n.is_active = FALSE AND n.is_deleted = FALSE
+        """
+        cursor.execute(query, (user_id,))
+        notifications = cursor.fetchall()
+
+        # 결과 반환
+        result = [
+            {
+                "notification_id": row[0],
+                "company_name": row[1],
+                "symbol": row[2],
+                "price": row[3],
+                "is_active": bool(row[4])
+            }
+            for row in notifications
+        ]
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to retrieve notifications: {e}")
+        raise e
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
+async def delete_notification_prices(user_id, notification_id):
+    """
+    특정 사용자의 알림 조건 삭제 (is_active=0인 경우만 삭제 가능).
+    """
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 조건 확인 쿼리
+        select_query = """
+        SELECT is_active FROM notification WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(select_query, (notification_id, user_id))
+        result = cursor.fetchone()
+
+        if not result:
+            raise ValueError("Notification not found or does not belong to the user")
+        if result[0]:
+            raise ValueError("Cannot delete an active notification")
+
+        # 삭제 업데이트 쿼리
+        update_query = """
+        UPDATE notification SET is_deleted = TRUE WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(update_query, (notification_id, user_id))
+        connection.commit()
+
+        return {"code": 200, "message": "알림 조건 삭제 성공"}
+
+    except Exception as e:
+        logger.error(f"Failed to delete notification: {e}")
+        raise e
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
+async def get_notification_messages(user_id):
+    """
+    특정 사용자의 알림 메시지 조회 (is_active=1, is_deleted=0).
+    """
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 알림 메시지 조회 쿼리
+        query = """
+        SELECT n.id, c.name AS company_name, c.symbol, n.price, n.is_active
+        FROM notification n
+        JOIN company c ON n.company_id = c.id
+        WHERE n.user_id = %s AND n.is_active = TRUE AND n.is_deleted = FALSE
+        """
+        cursor.execute(query, (user_id,))
+        messages = cursor.fetchall()
+
+        # 결과 반환
+        result = [
+            {
+                "notification_id": row[0],
+                "company_name": row[1],
+                "symbol": row[2],
+                "price": row[3],
+                "is_active": bool(row[4])
+            }
+            for row in messages
+        ]
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to retrieve notification messages: {e}")
+        raise e
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()
+
+
+async def delete_notification_messages(user_id, notification_id):
+    """
+    특정 사용자의 알림 메시지 삭제 (is_active=1인 경우만 삭제 가능).
+    """
+    connection = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+
+        # 메시지 확인 쿼리
+        select_query = """
+        SELECT is_active FROM notification WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(select_query, (notification_id, user_id))
+        result = cursor.fetchone()
+
+        if not result:
+            raise ValueError("Notification not found or does not belong to the user")
+        if not result[0]:
+            raise ValueError("Cannot delete an inactive notification")
+
+        # 삭제 업데이트 쿼리
+        update_query = """
+        UPDATE notification SET is_deleted = TRUE WHERE id = %s AND user_id = %s
+        """
+        cursor.execute(update_query, (notification_id, user_id))
+        connection.commit()
+
+        return {"code": 200, "message": "알림 메시지 삭제 성공"}
+
+    except Exception as e:
+        logger.error(f"Failed to delete notification message: {e}")
+        raise e
+    finally:
+        if connection:
+            cursor.close()
+            connection.close()

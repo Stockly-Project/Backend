@@ -26,25 +26,6 @@ async def init_kafka_producer():
     except Exception as e:
         logger.error(f"Error initializing Kafka producer: {e}")
 
-
-# async def init_kafka_producer_faust():
-#     try:
-#         bootstrap_servers = ['kafka:9092']
-#         if isinstance(bootstrap_servers, str):
-#             bootstrap_servers = [bootstrap_servers]
-
-#         # Kafka Producer 초기화
-#         producer = AIOKafkaProducer(
-#             bootstrap_servers=bootstrap_servers,
-#             value_serializer=lambda v: v if isinstance(v, bytes) else orjson.dumps(v.__dict__)  # faust.Record 직렬화
-#         )
-#         await producer.start()
-#         logger.info("Kafka producer initialized successfully.")
-#         return producer
-#     except Exception as e:
-#         logger.error(f"Error initializing Kafka producer: {e}")
-
-
 # Producer를 닫는 함수
 async def close_kafka_producer(producer):
     if producer:

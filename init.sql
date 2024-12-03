@@ -41,17 +41,16 @@ CREATE TABLE IF NOT EXISTS company (
   symbol VARCHAR(100) NOT NULL
 );
 
-CREATE TABLE notification (
+CREATE TABLE IF NOT EXISTS notification (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     company_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     is_deleted BOOLEAN DEFAULT FALSE,
-    price INT,
-    status VARCHAR(100)
+    price INT, 
+    is_active BOOLEAN DEFAULT FALSE
 );
-
 
 INSERT INTO company (name, symbol) VALUES
 ('삼성전자', '005930'),
