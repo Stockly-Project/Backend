@@ -63,9 +63,10 @@ async def logout(request: Request, response: Response):
 
 # 유저 소프트 딜리트 엔드포인트 (세션 기반)
 @router.delete('')
-async def delete_user(request: Request, redis=Depends(get_redis)):
+async def delete_user(request: Request, response: Response, redis=Depends(get_redis)):
     user_id = await get_authenticated_user_from_session_id(request,redis)
     deleteUser = soft_delete_user_by_session(user_id)
+    response.delete_cookie(key="session_id")
     return deleteUser
 
 # 유저 정보 조회 (세션 기반)
