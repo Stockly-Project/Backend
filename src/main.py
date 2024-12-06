@@ -91,7 +91,8 @@ app.include_router(alert_routes.router)
 # CORS 미들웨어 추가
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # allow_origins=["http://localhost:5173"],
+    allow_origins=["https://stockly-frontend.vercel.app/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
