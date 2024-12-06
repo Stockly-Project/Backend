@@ -42,9 +42,9 @@ async def login(response: Response, userdata: UserLoginDTO, redis=Depends(get_re
     response.set_cookie(
         key="session_id",
         value=session_id,
-        httponly=True,
+        httponly=False,
         samesite="None",
-        secure=False,
+        secure=True,
         max_age=3600,
         path="/"
     )
