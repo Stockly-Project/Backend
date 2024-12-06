@@ -32,6 +32,20 @@ CREATE TABLE IF NOT EXISTS user (
   is_deleted BOOLEAN DEFAULT FALSE
 );
 
+CREATE TABLE IF NOT EXISTS user_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL, -- user 테이블의 ID와 연결
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  is_deleted BOOLEAN DEFAULT FALSE,
+  total_roi DOUBLE DEFAULT 0.0, -- ROI(수익률)
+  total_asset INT DEFAULT 1000000, -- 초기 자산
+  total_stock INT DEFAULT 0, -- 보유한 주식 총 가치
+  cash INT DEFAULT 1000000, -- 초기 현금
+  is_daily BOOLEAN DEFAULT TRUE,
+  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS company (
   id INT AUTO_INCREMENT PRIMARY KEY,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -40,6 +54,30 @@ CREATE TABLE IF NOT EXISTS company (
   name VARCHAR(100) NOT NULL,
   symbol VARCHAR(100) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS stock_order (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    user_id INT NOT NULL,
+    company_id INT NOT NULL,
+    type VARCHAR(100) NOT NULL,
+    price INT NOT NULL,
+    quantity INT NOT NULL,
+    total_price INT NOT NULL,
+    status VARCHAR(100),
+    CONSTRAINT fk_order_user FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_order_company FOREIGN KEY (company_id) REFERENCES company (id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+INSERT INTO company (name, symbol) VALUES
+('삼성전자', '005930'),
+('LG', '003550'),
+('SK하이닉스', '000660'),
+('삼성바이오로직스','207940'),
+('기아', '000270');
+
 
 CREATE TABLE IF NOT EXISTS notification (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -52,9 +90,16 @@ CREATE TABLE IF NOT EXISTS notification (
     is_active BOOLEAN DEFAULT FALSE
 );
 
-INSERT INTO company (name, symbol) VALUES
-('삼성전자', '005930'),
-('LG', '003550'),
-('SK하이닉스', '000660'),
-('삼성바이오로직스','207940'),
-('기아', '000270');
+
+-- 트리거 추가
+DELIMITER $$
+
+CREATE TRIGGER after_user_insert
+AFTER INSERT ON user
+FOR EACH ROW
+BEGIN
+  INSERT INTO user_data (user_id, total_roi, total_asset, total_stock, cash)
+  VALUES (NEW.id, 0.0, 1000000, 0, 1000000);
+END $$
+
+DELIMITER ;

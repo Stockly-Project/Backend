@@ -234,7 +234,7 @@ async def generate_mock_stock_message(stock_symbol: str):
             id=stock_info["id"],
             name=stock_info["name"],
             symbol=stock_symbol,
-            timestamp=korea_time_str,
+            date=korea_time_str,
             open=open_price,
             close=close_price,
             high=high_price,

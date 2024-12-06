@@ -184,7 +184,74 @@ async def run_asking_websocket_background_multiple(stock_symbols: List[Dict[str,
 
 
 
+def process_mock_data_for_kafka(message: Dict, stock_symbol: str) -> Dict:
+    try:
+        # 메시지가 dict인지 확인
+        if not isinstance(message, dict):
+            logger.error(f"Expected dict, but got {type(message)}")
+            return {}
 
+        # 필요한 데이터 추출
+        required_keys = [
+            "id", "symbol", "name", "sell_price_3", "sell_price_4", "sell_price_5",
+            "sell_volume_3", "sell_volume_4", "sell_volume_5",
+            "buy_price_1", "buy_price_2", "buy_price_3",
+            "buy_volume_1", "buy_volume_2", "buy_volume_3", "timestamp"
+        ]
+        
+        # 데이터 필터링
+        filtered_data = {key: message[key] for key in required_keys if key in message}
+        
+        if len(filtered_data) != len(required_keys):
+            missing_keys = set(required_keys) - set(filtered_data.keys())
+            logger.warning(f"Missing keys in message: {missing_keys}")
+            return {}
+
+        # Kafka용 데이터 생성
+        kafka_data = {
+            "symbol": stock_symbol,
+            "data": filtered_data
+        }
+        return kafka_data
+
+    except Exception as e:
+        logger.error(f"Error processing stock data for Kafka: {e}")
+        return {}
+
+
+
+
+async def handle_mock_message(data_queue: asyncio.Queue, message: Dict):
+    try:
+        # 메시지가 dict인지 확인
+        if not isinstance(message, dict):
+            logger.error(f"Invalid message format (not a dict): {message}")
+            return
+
+        # 필요한 필드 확인
+        required_fields = {"symbol", "timestamp"}
+        if not required_fields.issubset(message.keys()):
+            logger.error(f"Missing required fields in message: {message}")
+            return
+
+        stock_symbol = message["symbol"]
+        kafka_data = process_mock_data_for_kafka(message, stock_symbol)
+
+        # Kafka 데이터 유효성 검증
+        if not kafka_data:
+            logger.warning(f"Processed data is invalid: {message}")
+            return
+
+        # 큐 크기 제한 초과 시 데이터 삭제
+        if data_queue.qsize() > 1000:
+            logger.warning("Data queue size exceeded limit. Dropping oldest data.")
+            await data_queue.get()
+
+        # 데이터 큐에 추가
+        await data_queue.put(kafka_data)
+        logger.info(f"Data added to queue: {kafka_data.get('symbol', 'unknown')}")
+    except Exception as e:
+        logger.error(f"Failed to handle WebSocket message: {e}, Message: {message}")
 
 
 # Mock Kafka 프로듀서 태스크
@@ -243,7 +310,7 @@ async def websocket_handler_mock(stock_symbols: List[Dict[str, str]], data_queue
                 stock_symbol = stock["symbol"]
                 mock_data = await generate_mock_data(stock_symbol)
                 if mock_data:  # 유효한 데이터만 처리
-                    await handle_message(data_queue, mock_data)  # 수정된 함수 호출
+                    await handle_mock_message(data_queue, mock_data)  # 수정된 함수 호출
             await asyncio.sleep(1)  # 1초 간격으로 데이터 생성
     except Exception as e:
         logger.error(f"Error in mock WebSocket handler: {e}")
