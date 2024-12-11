@@ -61,13 +61,29 @@ def soft_delete_user_by_session(user_id: int):
     database = get_db_connection()
     cursor = database.cursor()
 
-    cursor.execute("UPDATE user SET is_deleted = 1 WHERE id = %s", (user_id,))
-    database.commit()
-    cursor.close()
-    database.close()
+    try:
+        # 유저 테이블 소프트 딜리트
+        cursor.execute("UPDATE user SET is_deleted = 1 WHERE id = %s", (user_id,))
 
-    return {"message": "유저가 소프트 딜리트되었습니다."}
+        # user_data 테이블 소프트 딜리트
+        cursor.execute("UPDATE user_data SET is_deleted = 1 WHERE user_id = %s", (user_id,))
 
+        # stock_order 테이블 소프트 딜리트
+        cursor.execute("UPDATE stock_order SET is_deleted = 1 WHERE user_id = %s", (user_id,))
+
+        # notification 테이블 소프트 딜리트
+        cursor.execute("UPDATE notification SET is_deleted = 1 WHERE user_id = %s", (user_id,))
+
+        # 변경 사항 커밋
+        database.commit()
+    except Exception as e:
+        database.rollback()  # 오류 발생 시 롤백
+        raise HTTPException(status_code=500, detail=f"소프트 딜리트 중 오류가 발생했습니다: {str(e)}")
+    finally:
+        cursor.close()
+        database.close()
+
+    return {"message": "유저와 연관된 모든 데이터가 소프트 딜리트되었습니다."}
 
 # 세션 ID를 쿠키에서 가져와 인증하는 미들웨어
 async def get_authenticated_user_from_session_id(request: Request, redis):
